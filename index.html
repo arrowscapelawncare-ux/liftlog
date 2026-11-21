@@ -188,6 +188,18 @@ table.tv{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric
 .platevis .collar{width:8px;height:26px;background:var(--muted);border-radius:2px}
 .platevis .pl{width:16px;border-radius:4px;background:var(--fg);display:flex;align-items:flex-end;justify-content:center}
 .platevis .pl span{font-size:10px;color:var(--bg);font-weight:700;writing-mode:vertical-rl;transform:rotate(180deg);padding:4px 0}
+/* setup */
+.opt{display:flex;flex-direction:column;gap:2px;text-align:left;width:100%;padding:14px;border-radius:14px;border:1.5px solid var(--line);background:var(--surface);color:var(--fg);font:15px var(--font-body);cursor:pointer}
+.opt span{color:var(--muted);font-size:13px}
+.opt.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.prog{height:6px;border-radius:3px;background:var(--surface2);overflow:hidden}
+.prog span{display:block;height:100%;background:var(--accent);transition:width .3s}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.hero{display:flex;flex-direction:column;gap:14px;padding-block:18px 6px}
+.hero h2{font:700 34px/1.08 var(--font-display);text-transform:none;letter-spacing:-.02em;color:var(--fg);margin:0;text-wrap:balance}
+.hero ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px}
+.hero li{display:grid;grid-template-columns:28px 1fr;gap:8px;align-items:start;font-size:15px}
+.hero li b{width:28px;height:28px;border-radius:8px;background:var(--surface2);display:grid;place-items:center;font:700 14px var(--font-display)}
 p{margin:0}
 @media (prefers-reduced-motion:reduce){#toast,#mini .fill{transition:none}}
 </style>
@@ -289,7 +301,7 @@ const defaultProfiles=()=>[{id:'gym',name:'Commercial gym',equip:[...EQUIP]},{id
 
 function fresh(withSamples){
   const d={v:2,unit:'lb',voice:false,exercises:CATALOG.map(r=>exFromRow(r,'lb')),routines:[],workouts:[],active:null,
-    bar:{lb:45,kg:20},plates:{lb:[45,35,25,10,5,2.5],kg:[25,20,15,10,5,2.5,1.25]},profiles:defaultProfiles(),profileId:'gym',days:[0,2,4],deloadUntil:0,deloadSnooze:0};
+    bar:{lb:45,kg:20},plates:{lb:[45,35,25,10,5,2.5],kg:[25,20,15,10,5,2.5,1.25]},profiles:defaultProfiles(),profileId:'gym',days:[0,2,4],deloadUntil:0,deloadSnooze:0,setupDone:!!withSamples,startedAt:0,sessionMin:null,level:null,goal:null};
   if(withSamples)seed(d);
   return d;
 }
@@ -318,7 +330,8 @@ function normalize(d){
   const exercises=d.exercises.map(e=>{const row=CATALOG.find(r=>r[0]===e.name);const base=row?exFromRow(row,unit):customEx(e.name,e.muscle,unit);return Object.assign(base,e.type?e:{id:e.id,name:e.name,muscle:e.muscle||base.muscle})});
   for(const r of CATALOG)if(!exercises.some(e=>e.name===r[0]))exercises.push(exFromRow(r,unit));
   const out=Object.assign(f,{unit,voice:!!d.voice,exercises,routines:Array.isArray(d.routines)?d.routines:[],workouts:d.workouts.map(w=>Object.assign({prs:[],exercises:[]},w)),active:d.active||null});
-  for(const k of ['bar','plates','profiles','profileId','days','deloadUntil','deloadSnooze'])if(d[k]!==undefined)out[k]=d[k];
+  for(const k of ['bar','plates','profiles','profileId','days','deloadUntil','deloadSnooze','startedAt','sessionMin','level','goal'])if(d[k]!==undefined)out[k]=d[k];
+  out.setupDone=d.setupDone??(d.workouts.length>0||(d.routines||[]).length>0);
   if(!out.profiles.length)out.profiles=defaultProfiles();
   if(!out.profiles.some(p=>p.id===out.profileId))out.profileId=out.profiles[0].id;
   const A=out.active;
@@ -331,7 +344,7 @@ function normalize(d){
 }
 function load(){
   for(const k of [KEY,OLD_KEY]){let d=null;try{d=JSON.parse(localStorage.getItem(k))}catch(e){}const n=normalize(d);if(n)return n}
-  return fresh(true);
+  return fresh(false);
 }
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){toast('This browser blocked saving. Copy a backup from Settings.')}}
 let S=load(),tab='workout',view={preview:null,summary:null,limit:null},lastBeep=-1,toastT=0,wakeLock=null,audioCtx=null,redraw=null;
@@ -518,7 +531,7 @@ function weekPlan(){
   const now=new Date(),today=(now.getDay()+6)%7,monday=new Date(now);monday.setHours(0,0,0,0);monday.setDate(monday.getDate()-today);
   const dayOf=t=>Math.floor((t-monday)/864e5),done=new Map();
   for(const w of S.workouts){const d=dayOf(w.start);if(d>=0&&d<7&&!done.has(d))done.set(d,w.name)}
-  const sched=[...S.days].sort((a,b)=>a-b),needed=Math.max(0,sched.length-done.size),chosen=[];
+  const sDay=S.startedAt>=+monday?dayOf(S.startedAt):0,sched=S.days.filter(d=>d>=sDay).sort((a,b)=>a-b),needed=Math.max(0,sched.length-done.size),chosen=[];
   for(const d of sched)if(d>=today&&!done.has(d)&&chosen.length<needed)chosen.push(d);
   const busy=d=>done.has(d)||chosen.includes(d),adj=d=>busy(d-1)||busy(d+1);
   for(const pass of [0,1])for(let d=today;d<7&&chosen.length<needed;d++)if(!busy(d)&&(pass||!adj(d)))chosen.push(d);
@@ -532,8 +545,9 @@ function weekPlan(){
   let note='';const short=needed-chosen.length;
   if(missedDays.length){const moved=chosen.filter(d=>!sched.includes(d));note=`Missed ${missedDays.map(d=>DAYS[d]).join(', ')}.`+(moved.length?` Moved a session to ${moved.map(d=>DAYS[d]).join(' and ')}, keeping a rest day between sessions where possible.`:' Your remaining sessions stay on schedule.')}
   if(short>0)note+=` ${short} session${short>1?'s':''} won’t fit this week and roll${short>1?'':'s'} into next week.`;
-  if(!sched.length)note='Pick your training days in Settings to get a weekly plan.';
-  return {days,today,note:note.trim()};
+  if(!S.days.length)note='Pick your training days in Settings to get a weekly plan.';
+  else if(!sched.length)note=`Your weekly plan starts ${DAYS[Math.min(...S.days)]}. You can start a workout any time before then.`;
+  return {days,today,note:note.trim(),count:sched.length};
 }
 function readiness(){
   const f=Object.fromEntries(GROUPS.map(g=>[g,0])),now=Date.now();
@@ -661,6 +675,8 @@ function ask({title,msg='',ok='OK',danger=false,input=null}){
 
 /* ================= rendering ================= */
 function render(){
+  $('nav').hidden=!!setup;
+  if(setup){$('#title').textContent=setup.step?'Set up your plan':'Welcome';$('#micBtn').hidden=true;$('main').innerHTML=vSetup();redraw=null;tick();return}
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===tab));
   const A=S.active;
   let title={history:'History',exercises:'Exercises',settings:'Settings'}[tab];
@@ -686,11 +702,12 @@ function deloadCard(){
 }
 function weekCard(){
   const W=weekPlan();
-  return `<div class="card"><div class="row"><div class="eyebrow grow">This week</div><span class="muted">${S.days.length} sessions planned</span></div>
+  return `<div class="card"><div class="row"><div class="eyebrow grow">This week</div><span class="muted">${W.count} session${W.count===1?'':'s'} this week</span></div>
     <div class="week">${W.days.map(d=>`<div class="wd ${d.status}${d.d===W.today?' today':''}" title="${esc(d.label+': '+(d.name||d.status))}"><b>${d.label[0]}</b><i>${d.status==='done'?'✓':d.status==='missed'?'✕':d.status==='planned'?esc((d.name||'W')[0]):''}</i><small>${esc(d.status==='planned'||d.status==='done'?d.name.split(' ')[0]:d.status==='missed'?'Missed':'')}</small></div>`).join('')}</div>
     ${W.note?`<p class="muted">${esc(W.note)}</p>`:''}</div>`;
 }
 function recoveryCard(){
+  if(!S.workouts.some(w=>Date.now()-w.start<7*864e5))return '<div class="card"><div class="eyebrow">Muscle recovery</div><p class="muted">Estimates of which muscles are ready for more work show up after your first workout.</p></div>';
   const R=readiness();
   return `<div class="card"><div class="row"><div class="eyebrow grow">Muscle recovery</div><span class="pill">ESTIMATE</span></div>
     <div class="body-map">${bodyMap(R)}<div class="rlist">${GROUPS.map(g=>`<div><span>${g}</span><span class="rbar"><span style="width:${R[g]}%"></span></span><span>${R[g]}%</span></div>`).join('')}</div></div>
@@ -717,7 +734,7 @@ function vPreview(){
   const lim=view.limit,mins=estimateMinutes(plan);
   return `<div class="card"><div class="row"><h3 class="grow">${esc(r.name)}</h3><span class="pill">${deloadActive()?'DELOAD':'READY'}</span></div>
       <div class="stats"><div><div class="muted">Estimated duration</div><strong>${mins} min</strong></div><div><div class="muted">Exercises</div><strong>${plan.length}</strong></div></div>
-      <div><div class="muted" style="margin-bottom:6px">Time available</div><div class="seg five">${[[null,'Full'],[45,'45'],[30,'30'],[25,'25'],[20,'20']].map(([v,l])=>`<button data-a="limit" data-v="${v??''}" class="${lim===v?'on':''}" aria-pressed="${lim===v}">${l}${v?'m':''}</button>`).join('')}</div></div>
+      <div><div class="muted" style="margin-bottom:6px">Time available</div><div class="seg five">${[[null,'Full'],[60,'60'],[45,'45'],[30,'30'],[20,'20']].map(([v,l])=>`<button data-a="limit" data-v="${v??''}" class="${lim===v?'on':''}" aria-pressed="${lim===v}">${l}${v?'m':''}</button>`).join('')}</div></div>
       ${lim&&notes.length?`<div class="note"><div><span class="tag same">Shortened from ${before} min</span></div><p>${notes.map(esc).join(' · ')}. Main lifts are kept first.</p></div>`:lim&&!notes.length?'<p class="muted">The full session already fits.</p>':''}</div>
     ${rec}
     <div class="card"><div class="eyebrow">Coach notes</div><div class="plan">${rows||'<p class="muted">This routine has no exercises yet.</p>'}</div></div>
@@ -873,6 +890,8 @@ function vSettings(){
     <div class="card"><button class="btn block" data-a="plates">Plate calculator</button>
     ${deloadActive()?`<button class="btn block" data-a="endDeload">End deload week (until ${fmtDate(S.deloadUntil)})</button>`:'<button class="btn block" data-a="startDeload">Start a deload week</button>'}
     <p class="muted"><strong>Voice commands:</strong> during a workout, tap the microphone at the top and say “done”, “what’s next”, “skip rest”, “heavier”, “lighter”, “135 pounds”, “10 reps”, “easy”, “good”, “hard”, “swap” or “undo”. ${SR?'Most phones need an internet connection for speech recognition, so this is the one feature that may not work offline.':'This browser doesn’t support speech recognition; try Chrome on Android.'}</p></div>
+    <h2>Your plan</h2>
+    <div class="card"><p class="muted">Answer the setup questions again to get a new starter plan. Your workout history is kept; routines made by setup are replaced.</p><button class="btn block" data-a="redoSetup">Redo setup</button></div>
     <h2>Backup</h2>
     <div class="card"><p class="muted">Your log is stored only in this browser on this device. Copy a backup now and then and keep it in your notes or email.</p>
     <div class="row"><button class="btn primary grow" data-a="export">Copy backup</button><button class="btn grow" data-a="import">Restore backup</button></div></div>
@@ -1119,10 +1138,120 @@ function handleVoice(t){
   if(/stop/.test(t)){if(A.phase==='hold')act.holdStop();else if(A.phase==='tempo')act.tempoStop();else if(A.phase==='emom')act.emomEnd();return}
 }
 
+/* ================= first-run setup ================= */
+let setup=null;
+const SETUP_STEPS=6;
+const PREF={
+ 'h-push':['Bench Press (Barbell)','Dumbbell Bench Press','Chest Press (Machine)','Push-Up'],
+ 'h-push2':['Incline Bench Press (Dumbbell)','Dumbbell Bench Press','Dip','Push-Up'],
+ 'v-push':['Overhead Press (Barbell)','Shoulder Press (Dumbbell)','Shoulder Press (Machine)','Pike Push-Up'],
+ 'h-pull':['Bent Over Row (Barbell)','Seated Row (Cable)','Single Arm Row (Dumbbell)','Inverted Row','Band Row'],
+ 'v-pull':['Lat Pulldown (Cable)','Pull-Up','Chin-Up','Band Row'],
+ 'squat':['Squat (Barbell)','Leg Press','Goblet Squat (Dumbbell)','Bodyweight Squat'],
+ 'squat2':['Walking Lunge (Dumbbell)','Bulgarian Split Squat (Dumbbell)','Leg Press','Bodyweight Squat'],
+ 'hinge':['Romanian Deadlift (Barbell)','Romanian Deadlift (Dumbbell)','Hip Thrust (Barbell)','Glute Bridge'],
+ 'deadlift':['Deadlift (Barbell)','Romanian Deadlift (Dumbbell)','Hip Thrust (Barbell)','Glute Bridge'],
+ 'knee-flex':['Leg Curl (Machine)','Romanian Deadlift (Dumbbell)','Glute Bridge'],
+ 'knee-ext':['Leg Extension (Machine)','Goblet Squat (Dumbbell)','Wall Sit'],
+ 'calf':['Calf Raise (Machine)','Single-Leg Calf Raise'],
+ 'lat-raise':['Lateral Raise (Dumbbell)','Lateral Raise (Cable)','Band Pull-Apart'],
+ 'rear-delt':['Face Pull (Cable)','Rear Delt Fly (Dumbbell)','Band Pull-Apart'],
+ 'curl':['Bicep Curl (Dumbbell)','Bicep Curl (Barbell)','Hammer Curl (Dumbbell)','Band Curl'],
+ 'triceps':['Triceps Pushdown (Cable)','Overhead Triceps Extension (Cable)','Skull Crusher (EZ Bar)','Diamond Push-Up'],
+ 'core-hold':['Plank','Side Plank'],
+ 'core':['Hanging Leg Raise','Cable Crunch','Ab Wheel Rollout','Plank']
+};
+const TEMPLATES={
+ fbA:['Full Body A',['squat','h-push','h-pull','hinge','lat-raise','core-hold']],
+ fbB:['Full Body B',['deadlift','v-push','v-pull','squat2','curl','core']],
+ upper:['Upper Body',['h-push','h-pull','v-push','v-pull','triceps','curl']],
+ lower:['Lower Body',['squat','hinge','knee-flex','calf','core-hold']],
+ push:['Push',['h-push','v-push','h-push2','lat-raise','triceps']],
+ pull:['Pull',['v-pull','h-pull','rear-delt','curl','core']],
+ legs:['Legs',['squat','hinge','squat2','knee-ext','knee-flex','calf']]
+};
+const planKeys=n=>n>=5?['push','pull','legs']:n===4?['upper','lower']:['fbA','fbB'];
+const planTitle=n=>n>=5?'Push / Pull / Legs':n===4?'Upper / Lower split':'Full-body plan';
+function pickFor(slot,used,su){
+  let list=PREF[slot]||[];
+  if(su.level==='new')list=[...list.filter(n=>!n.includes('(Barbell)')),...list.filter(n=>n.includes('(Barbell)'))];
+  for(const n of list){const e=S.exercises.find(x=>x.name===n);if(e&&su.equip.includes(e.equip)&&!used.has(e.id))return e}
+  return null;
+}
+function buildPlan(su){
+  return planKeys(su.days.length).map(k=>{const [name,slots]=TEMPLATES[k],used=new Set(),items=[];
+    slots.forEach((slot,i)=>{const e=pickFor(slot,used,su);if(!e)return;used.add(e.id);const main=i<2;
+      items.push({exId:e.id,sets:su.level==='new'?(main?3:2):su.level==='exp'&&main?4:3})});
+    return {name,items}});
+}
+function applyGoal(goal){
+  const G={strength:[[4,6,180],[8,12,90]],muscle:[[6,10,120],[10,15,75]],fitness:[[8,12,90],[12,15,60]]}[goal];if(!G)return;
+  for(const e of S.exercises)if(e.type==='weight'){const [mn,mx,rest]=G[COMPOUND.has(e.pattern)?0:1];Object.assign(e,{repMin:mn,repMax:mx,rest})}
+}
+function newSetup(step){return {step,unit:S.unit,level:S.level,goal:S.goal,place:step?S.profileId:null,equip:step?[...profile().equip]:[],days:S.days.length?[...S.days]:[0,2,4],mins:S.sessionMin??45}}
+function vSetup(){
+  const su=setup,st=su.step;
+  const opt=(k,v,title,desc)=>`<button class="opt ${su[k]===v?'on':''}" data-a="suPick" data-k="${k}" data-v="${v}" aria-pressed="${su[k]===v}"><strong>${title}</strong><span>${desc}</span></button>`;
+  const nav=(ok,label='Continue',a='suNext')=>`<div class="row"><button class="btn grow" data-a="suBack">Back</button><button class="btn primary grow" data-a="${a}"${ok?'':' disabled'}>${label}</button></div>`;
+  const head=(q,help)=>`<div class="eyebrow">Step ${st} of ${SETUP_STEPS}</div><div class="prog"><span style="width:${st/SETUP_STEPS*100}%"></span></div><h3>${q}</h3>${help?`<p class="muted">${help}</p>`:''}`;
+  if(st===0)return `<div class="hero"><div class="eyebrow">LiftLog</div><h2>Your lifting coach that works with no signal.</h2>
+      <ul><li><b>1</b><span>Tells you exactly what to lift each set, and why it changed since last time.</span></li><li><b>2</b><span>Runs your rest timers and moves to the next set for you.</span></li><li><b>3</b><span>No account. Everything stays on this phone.</span></li></ul></div>
+    <p class="muted">Six quick questions and you’ll have a plan built for your goal, schedule and equipment.</p>
+    <button class="btn primary big block" data-a="suNext">Set up my plan</button>
+    <button class="btn block ghost" data-a="suSample">Look around with sample data first</button>`;
+  if(st===1)return head('Which units do you use?')+opt('unit','lb','Pounds (lb)','45 lb bar · plates from 2.5 to 45 lb')+opt('unit','kg','Kilograms (kg)','20 kg bar · plates from 1.25 to 25 kg')+nav(!!su.unit);
+  if(st===2)return head('How much lifting experience do you have?','This sets how many sets you start with and which versions of each lift you get.')
+    +opt('level','new','New to lifting','Under 6 months. Starts with dumbbells and machines, which are easier to learn, and fewer sets.')
+    +opt('level','some','Some experience','6 months to 2 years of fairly regular training.')
+    +opt('level','exp','Experienced','2+ years. Barbell main lifts with an extra set.')+nav(!!su.level);
+  if(st===3)return head('What’s your main goal?','This sets your rep ranges and rest times. You can change any exercise later.')
+    +opt('goal','strength','Get stronger','Heavier weights, 4–6 reps on main lifts, longer rest (3:00).')
+    +opt('goal','muscle','Build muscle','Moderate weights, 6–12 reps, steady volume, 2:00 rest.')
+    +opt('goal','fitness','General fitness','Lighter weights, 8–15 reps, shorter rest (1:30).')+nav(!!su.goal);
+  if(st===4)return head('Where do you usually train?','Your plan only uses equipment you have. You can add more places later, like a hotel gym.')
+    +opt('place','gym','Commercial gym','Barbells, dumbbells, cables and machines.')
+    +opt('place','home','Home','Dumbbells, kettlebells, bands and bodyweight.')
+    +opt('place','travel','Travel','Bands and bodyweight only.')
+    +(su.place?`<div><div class="eyebrow" style="margin-bottom:8px">Adjust what you have</div><div class="chips">${EQUIP.map(q=>`<button class="chip ${su.equip.includes(q)?'on':''}" data-a="suEq" data-v="${q}" aria-pressed="${su.equip.includes(q)}">${q}</button>`).join('')}</div></div>`:'')
+    +nav(!!su.place&&su.equip.length>0);
+  if(st===5)return head('When do you want to train?',su.level==='new'?'Starting out, 2 or 3 days a week with a rest day between is plenty.':'Pick the days you can usually make it.')
+    +`<div class="chips">${DAYS.map((d,i)=>`<button class="chip ${su.days.includes(i)?'on':''}" data-a="suDay" data-v="${i}" aria-pressed="${su.days.includes(i)}">${d}</button>`).join('')}</div>
+    <p class="muted">${su.days.length?`${su.days.length} day${su.days.length>1?'s':''} a week → ${planTitle(su.days.length)}`:'Pick at least one day.'}</p>
+    <div><div class="eyebrow" style="margin-bottom:8px">How long is a typical session?</div><div class="seg five" style="grid-template-columns:repeat(4,1fr)">${[[30,'30 min'],[45,'45 min'],[60,'60 min'],[null,'No limit']].map(([v,l])=>`<button data-a="suMins" data-v="${v??''}" class="${su.mins===v?'on':''}" aria-pressed="${su.mins===v}">${l}</button>`).join('')}</div></div>
+    <p class="muted">Longer routines get trimmed to fit, keeping your main lifts.</p>`+nav(su.days.length>0);
+  const plan=buildPlan(su),U=su.unit;
+  return head('Your starter plan')+`<div class="card"><div class="row"><strong class="grow">${planTitle(su.days.length)}</strong><span class="muted">${su.days.map(d=>DAYS[d]).join(' · ')}</span></div>
+      <p class="muted">${{strength:'Strength focus',muscle:'Muscle-building focus',fitness:'General fitness focus'}[su.goal]} · ${{new:'beginner-friendly',some:'intermediate',exp:'experienced'}[su.level]} · ${{gym:'commercial gym',home:'home',travel:'travel'}[su.place]} equipment${su.mins?` · fits ${su.mins} min`:''}</p></div>
+    ${plan.map(r=>`<div class="card"><strong>${esc(r.name)}</strong><div>${r.items.map(i=>`<div class="exline"><span>${esc(exName(i.exId))}</span><span class="muted">${i.sets} sets</span></div>`).join('')}</div></div>`).join('')}
+    <p class="muted">Weights start blank. In your first session LiftLog asks you to find a comfortable weight for each lift (in ${U}), then sets every target after that.</p>`
+    +nav(true,'Start training','suFinish');
+}
+function finishSetup(){
+  const su=setup,hadData=S.workouts.length>0;
+  if(!hadData){S=fresh(false);if(su.unit==='kg')S.exercises=CATALOG.map(r=>exFromRow(r,'kg'))}
+  S.unit=su.unit;applyGoal(su.goal);
+  const prof=S.profiles.find(p=>p.id===su.place);if(prof)prof.equip=[...su.equip];S.profileId=su.place;
+  Object.assign(S,{days:[...su.days].sort((a,b)=>a-b),sessionMin:su.mins,level:su.level,goal:su.goal});
+  const plan=buildPlan(su);
+  S.routines=[...S.routines.filter(r=>!r.fromSetup&&!r.sample),...plan.map(p=>({id:uid(),fromSetup:true,...p}))];
+  S.setupDone=true;if(!S.startedAt)S.startedAt=Date.now();setup=null;tab='workout';view={preview:null,summary:null,limit:null};save();window.scrollTo(0,0);render();toast('Your plan is ready');
+}
+const suAct={
+  suNext:()=>{setup.step=Math.min(SETUP_STEPS,setup.step+1);window.scrollTo(0,0);render()},
+  suBack:()=>{if(setup.step<=1&&S.setupDone){setup=null;render();return}setup.step=Math.max(0,setup.step-1);window.scrollTo(0,0);render()},
+  suPick:b=>{const k=b.dataset.k,v=b.dataset.v;setup[k]=v;if(k==='place')setup.equip=[...defaultProfiles().find(p=>p.id===v).equip];render()},
+  suEq:b=>{const q=b.dataset.v;setup.equip=setup.equip.includes(q)?setup.equip.filter(x=>x!==q):[...setup.equip,q];render()},
+  suDay:b=>{const i=+b.dataset.v;setup.days=setup.days.includes(i)?setup.days.filter(d=>d!==i):[...setup.days,i].sort((a,b)=>a-b);render()},
+  suMins:b=>{setup.mins=b.dataset.v?+b.dataset.v:null;render()},
+  suFinish:finishSetup,
+  suSample:()=>{S=fresh(true);setup=null;save();render();toast('Sample data loaded. Erase it any time in Settings.')},
+  redoSetup:()=>{setup=newSetup(1);window.scrollTo(0,0);render()}
+};
+
 /* ================= actions ================= */
 const act={
   tab:b=>{tab=b.dataset.v;window.scrollTo(0,0);render()},
-  preview:b=>{view.preview=b.dataset.id;view.limit=null;window.scrollTo(0,0);render()},
+  preview:b=>{view.preview=b.dataset.id;view.limit=S.sessionMin||null;window.scrollTo(0,0);render()},
   back:()=>{view.preview=null;render()},
   limit:b=>{view.limit=b.dataset.v?+b.dataset.v:null;render()},
   closeSummary:()=>{view.summary=null;render()},
@@ -1220,7 +1349,7 @@ const act={
     <button class="btn block" data-a="closeSheet">Cancel</button>`),
   pickFile:()=>$('#importFile').click(),
   restore:()=>{let d=null;try{d=normalize(JSON.parse($('#rs').value))}catch(e){}if(!d){toast("That isn't a LiftLog backup. Check that you pasted all of it.");return}S=d;view={preview:null,summary:null,limit:null};save();closeSheet();tab='history';render();toast(`Restored ${S.workouts.length} workouts`)},
-  reset:async()=>{if(await ask({title:'Erase all data?',msg:'Every workout, routine and custom exercise on this device will be deleted. This cannot be undone.',ok:'Erase everything',danger:true})){S=fresh(false);view={preview:null,summary:null,limit:null};save();wake(false);stopListening();render();toast('All data erased')}}
+  reset:async()=>{if(await ask({title:'Erase all data?',msg:'Every workout, routine and custom exercise on this device will be deleted. This cannot be undone.',ok:'Erase everything',danger:true})){S=fresh(false);view={preview:null,summary:null,limit:null};save();wake(false);stopListening();setup=newSetup(0);render();toast('All data erased')}}
 };
 function doSwap(toId){
   const {A,x,ex}=curParts(),to=exById(toId);if(!to)return;
@@ -1243,7 +1372,7 @@ function picked(exId){
 document.addEventListener('click',e=>{
   if(e.target.id==='modal'){closePick();return}
   if(e.target.id==='dialog'){closeSheet();return}
-  const b=e.target.closest('[data-a]');if(b&&act[b.dataset.a])act[b.dataset.a](b);
+  const b=e.target.closest('[data-a]');if(!b||b.disabled)return;const f=act[b.dataset.a]||suAct[b.dataset.a];if(f)f(b);
 });
 document.addEventListener('input',e=>{
   const t=e.target;
@@ -1261,6 +1390,7 @@ document.addEventListener('change',e=>{
   else if(t.id==='importFile'&&t.files[0]){const f=t.files[0];t.value='';f.text().then(txt=>{const r=$('#rs');if(r)r.value=txt;toast('File loaded. Tap Restore.')}).catch(()=>toast("Couldn't read that file"))}
 });
 document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(!$('#modal').hidden)closePick();else if(!$('#dialog').hidden)closeSheet()});
+if(!S.setupDone)setup=newSetup(0);
 if(S.active)wake(true);
 render();
 </script>
