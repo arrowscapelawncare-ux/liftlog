@@ -806,8 +806,9 @@ function vSet(){
   const sub=ex.type==='emom'?`${open} rounds · a new round every ${clock(ex.interval||60)}`:`Target ${targetText(ex,rec)} · rest ${clock(ex.rest)}${ex.tempo&&(ex.type==='weight'||ex.type==='reps')?` · tempo ${tempoStr(ex.tempo)}`:''}`;
   return `<div><div class="eyebrow">${eyebrow}</div><div class="fname">${esc(ex.name)}</div><div class="muted">${esc(sub)}</div>${x.from?`<div class="muted">${esc(x.from)}</div>`:''}</div>
     ${x.ov?.note?`<div class="mynote"><strong>Your note:</strong> ${esc(x.ov.note)}</div>`:''}
-    ${x.rec?`<div class="card">${noteHtml(x.rec)}</div>`:''}
+    ${x.adj?`<div class="card"><div class="eyebrow">${x.adj.auto?'Adjusted from your last set':'Based on your last set'}</div>${noteHtml(x.adj)}${x.adj.auto?'':`<div class="row"><button class="btn primary grow" data-a="useAdj">Use ${esc(fmtW(x.adj.w))} ${S.unit}</button><button class="btn grow" data-a="skipAdj">Keep ${esc(fmtW(+s.w||0))} ${S.unit}</button></div>`}</div>`:x.rec?`<div class="card">${noteHtml(x.rec)}</div>`:''}
     ${fields}
+    ${A.cur.si===firstOpen(x)&&!x.sets.some(q=>q.done)&&warmupLine(ex,+s.w||0)?`<p class="muted center">${esc(warmupLine(ex,+s.w||0))}</p>`:''}
     ${ex.equip==='barbell'&&ex.type==='weight'?`<p class="muted center" id="plateLine">${esc(plateLine(+s.w||0))}</p>`:''}
     <button class="bigbtn" data-a="${action}" id="doneBtn">${esc(doneLabel(ex,s))}</button>
     ${tools.length?`<div class="row wrap">${tools.join('')}</div>`:''}
@@ -824,7 +825,7 @@ function vRest(){
   const n=nextUpText()||{title:'',what:''};
   return `<div class="timer"><div class="eyebrow">Rest</div><div class="ring" id="ring"><div><strong id="restBig">0:00</strong><span class="muted">remaining</span></div></div>
     <div class="row"><button class="btn" data-a="restAdj" data-v="-15">−15s</button><button class="btn" data-a="restAdj" data-v="15">+15s</button></div></div>
-    <div class="card"><div class="eyebrow">Up next</div><strong>${esc(n.title)}</strong><span class="fname" style="font-size:22px">${esc(n.what)}</span></div>
+    <div class="card"><div class="eyebrow">Up next</div><strong>${esc(n.title)}</strong>${(()=>{const x=S.active.exercises[S.active.cur.ei];return x?.adj&&x.adj.kind!=='same'?`<p class="muted">${esc(x.adj.auto?'Weight adjusted: ':'Suggestion: ')}${esc(x.adj.label)}</p>`:''})()}<span class="fname" style="font-size:22px">${esc(n.what)}</span></div>
     <button class="bigbtn" data-a="restSkip">I’m ready · start set</button>
     <button class="btn block ghost" data-a="overview">All exercises</button>`;
 }
@@ -1103,13 +1104,39 @@ function advance(){
   for(let k=1;k<=n;k++){const ei=(A.cur.ei+k)%n,si=firstOpen(A.exercises[ei]);if(si>=0){A.cur={ei,si};A.phase='set';return}}
   A.phase='checkin';
 }
+// In-session coaching: after each weighted set, suggest the next set's weight from the reps you got.
+// First session of a lift: applied automatically. Later sessions: offered with a "Use" button.
+function nextSetAdvice(ex,x,s){
+  if(ex.type!=='weight'||!(+s.w>0)||!(+s.r>0))return null;
+  const U=S.unit,mn=ex.repMin,mx=ex.repMax,inc=ex.inc||(U==='kg'?2.5:5),first=!exHistory(x.exId).length,r=+s.r,w=+s.w;
+  if(r>=mn&&r<=mx)return first?{w,kind:'same',label:`Stay at ${fmtW(w)} ${U}`,why:`${r} reps is right in your ${mn}–${mx} range. Keep this weight for the remaining sets.`,auto:true}:null;
+  if(!first&&r>mx&&r<mx+3)return null;
+  if(!first&&r<mn&&r>=mn-1)return null;
+  const tr=Math.round((mn+mx)/2);let nw=roundTo(e1rm(w,r)/(1+tr/30),inc);
+  if(r>mx)nw=Math.min(roundTo(w*1.4,inc),Math.max(w+inc,nw));else nw=Math.max(roundTo(w*.7,inc),Math.min(w-inc,nw));
+  nw=Math.max(inc,nw);
+  return r>mx?{w:nw,kind:'up',label:`Try ${fmtW(nw)} ${U}`,why:`${r} reps at ${fmtW(w)} ${U} is above your ${mn}–${mx} range${first?', so this weight is too light':''}. ${fmtW(nw)} ${U} should land around ${tr} reps.`,auto:first}
+    :{w:nw,kind:'down',label:`Drop to ${fmtW(nw)} ${U}`,why:`${r} reps is below your ${mn}-rep minimum. ${fmtW(nw)} ${U} keeps you in the ${mn}–${mx} range with good form.`,auto:first};
+}
+function warmupLine(ex,w){
+  if(ex.type!=='weight'||!COMPOUND.has(ex.pattern)||!(w>0))return '';
+  const U=S.unit,inc=ex.inc||(U==='kg'?2.5:5),bar=+S.bar[U]||0,isBar=ex.equip==='barbell';
+  if(w<(isBar?bar*1.6:U==='kg'?25:50))return '';
+  const steps=isBar?[[0,10],[.5,5],[.7,3],[.85,1]]:[[.5,8],[.75,4]],seen=new Set(),out=[];
+  for(const [pct,reps] of steps){const v=pct?Math.max(isBar?bar:inc,roundTo(w*pct,inc)):bar;if(v>=w||seen.has(v))continue;seen.add(v);out.push(`${fmtW(v)} × ${reps}`)}
+  return out.length?`Warm up first: ${out.join(' · ')}`:'';
+}
+function startingWeight(ex){const kg=S.unit==='kg';return {barbell:+S.bar[S.unit]||(kg?20:45),dumbbell:kg?10:20,kettlebell:kg?12:25,cable:kg?15:30,machine:kg?20:40}[ex.equip]||(kg?10:20)}
 function complete(){
   const {A,x,ex,s}=curParts();if(!s)return;
   if((ex.type==='weight'||ex.type==='reps')&&!(+s.r>0)){toast('Enter your reps, then tap Done');return}
   if(ex.type==='distance'&&!(+s.d>0)){toast('Enter the distance, then tap Done');return}
+  if(ex.type==='weight'&&hasLoad(ex)&&ex.equip!=='other'&&!(+s.w>0)){toast('Enter the weight you used, then tap Done');return}
   if(s.w==='')s.w=0;
   s.w=+s.w||0;s.r=+s.r||0;s.t=+s.t||0;s.d=+s.d||0;s.done=true;A.log.push([A.cur.ei,A.cur.si]);
-  for(const q of x.sets)if(!q.done&&(ex.type==='weight'||ex.type==='distance'))q.w=s.w;
+  const adv=nextSetAdvice(ex,x,s);
+  for(const q of x.sets)if(!q.done&&(ex.type==='weight'||ex.type==='distance'))q.w=adv&&adv.auto?adv.w:s.w;
+  x.adj=firstOpen(x)>=0?adv:null;
   buzz(60);
   const si=firstOpen(x);
   startRest(ex.rest);
@@ -1368,8 +1395,12 @@ const act={
   startRoutine:b=>{const r=S.routines.find(r=>r.id===b.dataset.id);if(!r)return;audioUnlock();const {plan}=routinePlan(r);
     startWorkout(r.name,r.id,plan.map(p=>makeEntry(p.exId,p.rec,p.from&&p.from.startsWith('Swapped')?p.from:null,p.ov)))},
   startEmpty:()=>{audioUnlock();startWorkout(defaultName(),null,[]);openPick('workout')},
-  step:b=>{const {ex,s}=curParts(),f=b.dataset.f,d=+b.dataset.d,size=f==='w'?(ex.inc||(S.unit==='kg'?2.5:5)):f==='t'?(ex.step||5):f==='d'?(ex.step||10):1;s[f]=Math.max(0,Math.round(((+s[f]||0)+d*size)*100)/100);save();render()},
+  step:b=>{const {ex,s}=curParts(),f=b.dataset.f,d=+b.dataset.d;
+    if(f==='w'&&d>0&&!(+s.w>0)&&(ex.type==='weight'||ex.type==='distance'||ex.type==='emom')&&hasLoad(ex)){s.w=startingWeight(ex);save();render();return}
+    const size=f==='w'?(ex.inc||(S.unit==='kg'?2.5:5)):f==='t'?(ex.step||5):f==='d'?(ex.step||10):1;s[f]=Math.max(0,Math.round(((+s[f]||0)+d*size)*100)/100);save();render()},
   complete,
+  useAdj:()=>{const {x,ex}=curParts();if(!x?.adj)return;for(const q of x.sets)if(!q.done)q.w=x.adj.w;toast(`Next sets at ${fmtW(x.adj.w)} ${S.unit}`);x.adj=null;save();render()},
+  skipAdj:()=>{const {x}=curParts();if(x)x.adj=null;save();render()},
   holdStart:()=>{const {A,ex,s}=curParts();const t=+s.t||ex.target;if(!(t>0)){toast('Set a hold time first');return}s.t=t;A.hold={start:Date.now()+3000,target:t};A.phase='hold';A.restEnd=0;lastBeep=-1;audioUnlock();save();render()},
   holdStop:()=>{const A=S.active;if(!A.hold)return;const el=Math.floor((Date.now()-A.hold.start)/1000);if(el<1){act.holdCancel();return}holdDone(el)},
   holdCancel:()=>{const A=S.active;A.hold=null;A.phase='set';save();render()},
@@ -1393,7 +1424,7 @@ const act={
     if(open&&!await ask({title:'Finish now?',msg:`${open} set${open>1?'s':''} not done will be left out.`,ok:'Finish'}))return;
     closeSheet();A.phase='checkin';A.hold=A.emom=A.tempo=null;save();render()},
   discard:async()=>{if(await ask({title:'Discard this workout?',msg:'Nothing from this session will be saved.',ok:'Discard',danger:true})){S.active=null;view={preview:null,summary:null,limit:null};save();wake(false);stopListening();closeSheet();render()}},
-  undo:()=>{const A=S.active,last=A.log.pop();if(!last){toast('No completed sets to undo');return}const [ei,si]=last,x=A.exercises[ei];if(!x||!x.sets[si]){render();return}x.sets[si].done=false;x.feel=null;A.cur={ei,si};A.phase='set';A.restEnd=0;A.hold=A.emom=A.tempo=null;save();render();toast('Set reopened')},
+  undo:()=>{const A=S.active,last=A.log.pop();if(!last){toast('No completed sets to undo');return}const [ei,si]=last,x=A.exercises[ei];if(!x||!x.sets[si]){render();return}x.sets[si].done=false;x.feel=null;x.adj=null;A.cur={ei,si};A.phase='set';A.restEnd=0;A.hold=A.emom=A.tempo=null;save();render();toast('Set reopened')},
   skipEx:async()=>{const A=S.active,x=A.exercises[A.cur.ei];if(!x)return;if(!await ask({title:`Skip ${exName(x.exId)}?`,msg:'Remaining sets of this exercise are dropped.',ok:'Skip'}))return;
     x.sets=x.sets.filter(s=>s.done);A.hold=A.emom=A.tempo=null;if(x.sets.length){A.phase='rate'}else{advance()}save();render()},
   swap:()=>{const {x}=curParts();if(!x){toast('Add an exercise first');return}swapSheet()},

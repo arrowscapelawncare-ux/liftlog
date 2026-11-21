@@ -21,6 +21,8 @@ LiftLog works like a personal trainer that lives on your phone. It remembers eve
 
 **During the workout**
 - **Autopilot:** one set at a time, targets preloaded, one big Done button, auto-advance.
+- **Finds your weight for you:** on a lift's first session, each set's reps set the next set's weight (e.g. 18 reps at 20 lb with an 8–12 range → try 25 lb). In later sessions, if reps land well outside your range it offers a one-tap "Use 125 lb" for the next set.
+- **Warm-up ladder** before the first set of big lifts, and a sensible starting weight on the first + tap (empty bar, 20 lb dumbbells...).
 - **Exercise modes:** weight + reps, bodyweight reps, timed holds, distance (carries, sled), EMOM / intervals, and a tempo guide with audio cues.
 - **Smart rest timers** per exercise, with beeps and vibration.
 - **Swap:** machine taken? Get equivalent exercises for the equipment you have, with an estimated starting weight.
