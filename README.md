@@ -4,13 +4,20 @@ A workout tracker that works completely offline. No account, no server, no inter
 
 ## What it does
 
-- **Log workouts:** pick exercises, enter weight and reps, and tap ✓ for each set. Each set shows what you lifted last time.
-- **Rest timer:** starts on its own after each set, with +15s, −15s and Skip. It vibrates and beeps when time is up (where the phone allows).
-- **Routines:** save any finished workout as a routine and start it again with one tap.
-- **History and PRs:** every workout with its time, total volume and best sets. New personal records get a PR badge (estimated 1-rep max, Epley formula).
-- **Exercise library:** 34 common lifts plus your own custom exercises, with stats for each.
+LiftLog works like a personal trainer that lives on your phone. It remembers every set, raises the difficulty for you, runs the timers, and tells you what to do next and **why**.
+
+- **Automatic progressive overload:** rate each exercise Easy, Good or Hard (and flag if form broke down). LiftLog combines that with your actual reps and history to set your next target: add a rep, add weight, repeat, or back off. Every suggestion explains itself, e.g. *"Increase 5 lb. You reached the top of your rep range (10) on every set with good technique."*
+- **Today's plan:** before you start, see the estimated duration and a coach note for every exercise.
+- **Autopilot workouts:** one set at a time, weights and reps preloaded, one big Done button. It moves to the next set and exercise on its own.
+- **Exercise types:** weight + reps, bodyweight reps, and timed holds (planks go 30 → 35 → 40 s automatically, with a countdown).
+- **Smart rest timers:** each exercise has its own rest (heavy squats 3:00, curls 1:00). Beeps in the last 3 seconds and vibration where the phone allows.
+- **Voice coach (optional):** reads your next set aloud when rest ends.
+- **Check-in:** energy, soreness and difficulty in three taps at the end.
+- **Records:** heaviest weight, estimated 1-rep max, best set, most reps, longest hold.
+- **Routines:** build your own; "Up next" rotates through them.
 - **Backup and restore:** copy your whole log as text and paste it back on any device.
-- **Light and dark mode:** follows your phone's setting.
+
+See [ROADMAP.md](ROADMAP.md) for what's coming in phases 2 to 4.
 
 ## Use it offline
 
