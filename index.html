@@ -195,6 +195,8 @@ table.tv{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric
 .prog{height:6px;border-radius:3px;background:var(--surface2);overflow:hidden}
 .prog span{display:block;height:100%;background:var(--accent);transition:width .3s}
 .btn:disabled{opacity:.45;cursor:not-allowed}
+.dayname{font:700 17px var(--font-display);background:transparent!important;border:1px solid transparent!important;padding:4px 6px!important;border-radius:8px;color:var(--fg)}
+.dayname:focus{border-color:var(--line)!important}
 .hero{display:flex;flex-direction:column;gap:14px;padding-block:18px 6px}
 .hero h2{font:700 34px/1.08 var(--font-display);text-transform:none;letter-spacing:-.02em;color:var(--fg);margin:0;text-wrap:balance}
 .hero ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px}
@@ -301,7 +303,7 @@ const defaultProfiles=()=>[{id:'gym',name:'Commercial gym',equip:[...EQUIP]},{id
 
 function fresh(withSamples){
   const d={v:2,unit:'lb',voice:false,exercises:CATALOG.map(r=>exFromRow(r,'lb')),routines:[],workouts:[],active:null,
-    bar:{lb:45,kg:20},plates:{lb:[45,35,25,10,5,2.5],kg:[25,20,15,10,5,2.5,1.25]},profiles:defaultProfiles(),profileId:'gym',days:[0,2,4],deloadUntil:0,deloadSnooze:0,setupDone:!!withSamples,startedAt:0,sessionMin:null,level:null,goal:null};
+    bar:{lb:45,kg:20},plates:{lb:[45,35,25,10,5,2.5],kg:[25,20,15,10,5,2.5,1.25]},profiles:defaultProfiles(),profileId:'gym',days:[0,2,4],deloadUntil:0,deloadSnooze:0,setupDone:!!withSamples,startedAt:0,sessionMin:null,level:null,goal:null,blockWeeks:0,blockStart:0};
   if(withSamples)seed(d);
   return d;
 }
@@ -314,7 +316,7 @@ function seed(d){
   const up=mk('Upper Body',[['Bench Press (Barbell)'],['Shoulder Press (Dumbbell)'],['Lat Pulldown (Cable)'],['Seated Row (Cable)'],['Triceps Pushdown (Cable)'],['Plank']]);
   const lo=mk('Lower Body',[['Squat (Barbell)'],['Romanian Deadlift (Barbell)'],['Leg Press'],['Leg Curl (Machine)'],['Calf Raise (Machine)'],['Hanging Leg Raise']]);
   const co=mk('Conditioning',[['Kettlebell Swing',10],["Farmer's Carry (Dumbbell)"],['Side Plank']]);
-  d.routines.push(up,lo,co);
+  d.routines.push(up,lo,co);d.blockWeeks=5;d.blockStart=Date.now()-10*864e5;
   const day=864e5,now=Date.now(),at=(days,h)=>{const t=new Date(now-days*day);t.setHours(h,0,0,0);return +t};
   const wk=(name,r,start,mins,exercises,checkin)=>({id:uid(),name,routineId:r.id,sample:true,start,end:start+mins*6e4,exercises,prs:[],checkin});
   d.workouts.push(
@@ -330,7 +332,7 @@ function normalize(d){
   const exercises=d.exercises.map(e=>{const row=CATALOG.find(r=>r[0]===e.name);const base=row?exFromRow(row,unit):customEx(e.name,e.muscle,unit);return Object.assign(base,e.type?e:{id:e.id,name:e.name,muscle:e.muscle||base.muscle})});
   for(const r of CATALOG)if(!exercises.some(e=>e.name===r[0]))exercises.push(exFromRow(r,unit));
   const out=Object.assign(f,{unit,voice:!!d.voice,exercises,routines:Array.isArray(d.routines)?d.routines:[],workouts:d.workouts.map(w=>Object.assign({prs:[],exercises:[]},w)),active:d.active||null});
-  for(const k of ['bar','plates','profiles','profileId','days','deloadUntil','deloadSnooze','startedAt','sessionMin','level','goal'])if(d[k]!==undefined)out[k]=d[k];
+  for(const k of ['bar','plates','profiles','profileId','days','deloadUntil','deloadSnooze','startedAt','sessionMin','level','goal','blockWeeks','blockStart'])if(d[k]!==undefined)out[k]=d[k];
   out.setupDone=d.setupDone??(d.workouts.length>0||(d.routines||[]).length>0);
   if(!out.profiles.length)out.profiles=defaultProfiles();
   if(!out.profiles.some(p=>p.id===out.profileId))out.profileId=out.profiles[0].id;
@@ -379,7 +381,7 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden&&S.active)
 function defaultName(){const h=new Date().getHours();return h<12?'Morning Workout':h<17?'Afternoon Workout':'Evening Workout'}
 const unitWord=()=>S.unit==='kg'?'kilos':'pounds';
 const profile=()=>S.profiles.find(p=>p.id===S.profileId)||S.profiles[0];
-const avail=ex=>profile().equip.includes(ex.equip);
+const avail=ex=>(setup?setup.equip:profile().equip).includes(ex.equip);
 
 /* ================= coach engine ================= */
 // Every recommendation carries a short label and a plain-language reason.
@@ -457,6 +459,7 @@ function recommend(ex,nSets,pending){
 const deloadActive=()=>S.deloadUntil>Date.now();
 function deloadAdj(rec,ex){
   if(!deloadActive())return rec;
+  if(rec.kind==='new')return {...rec,why:rec.why+' It’s a deload week, so keep this one comfortably light.'};
   const r={...rec,kind:'down',sets:ex.type==='emom'?Math.max(5,Math.ceil(rec.sets*.6)):Math.max(2,rec.sets-1)},inc=ex.inc||(S.unit==='kg'?2.5:5);
   if(+r.w>0)r.w=Math.max(0,roundTo(+r.w*.85,inc));
   if(ex.type==='weight')r.r=ex.repMin;
@@ -467,8 +470,10 @@ function deloadAdj(rec,ex){
   r.label=`Deload: ${what}`;r.why=`Lighter week to recover: about 15% less load and one fewer set. Normal progression resumes ${fmtDate(S.deloadUntil)}.`;
   return r;
 }
+function blockInfo(){if(!S.blockWeeks||!S.blockStart||deloadActive())return null;const wk=Math.floor((Date.now()-S.blockStart)/(7*864e5))+1;return {wk,total:S.blockWeeks,due:wk>S.blockWeeks}}
 function deloadAdvice(){
   if(deloadActive()||S.deloadSnooze>Date.now())return null;
+  const bi=blockInfo();if(bi&&bi.due)return `You’ve finished your ${bi.total}-week training block.`;
   const recent=sortedWorkouts().filter(w=>!w.deload&&Date.now()-w.start<21*864e5).slice(0,4);
   if(recent.length<3)return null;
   let n=0,bad=0;for(const w of recent)for(const x of w.exercises){const ex=exById(x.exId);if(!ex)continue;n++;if(missed(ex,x)||x.feel==='hard')bad++}
@@ -698,11 +703,11 @@ function profileSelect(){return `<div class="row"><span class="muted">Training a
 function deloadCard(){
   if(deloadActive())return `<div class="card warn"><div class="row"><strong class="grow">Deload week</strong><span class="muted">until ${fmtDate(S.deloadUntil)}</span></div><p class="muted" style="color:inherit">Weights are about 15% lighter with one fewer set. Lighter sessions don’t count against your progression.</p><button class="btn sm" data-a="endDeload">End deload now</button></div>`;
   const why=deloadAdvice();if(!why)return '';
-  return `<div class="card warn"><strong>Time for a lighter week?</strong><p class="muted" style="color:inherit">${esc(why)} A deload week (about 15% lighter, one fewer set) usually brings strength back.</p><div class="row"><button class="btn primary grow" data-a="startDeload">Start deload week</button><button class="btn grow" data-a="snoozeDeload">Not now</button></div></div>`;
+  return `<div class="card warn"><strong>Time for a lighter week?</strong><p class="muted" style="color:inherit">${esc(why)} ${blockInfo()?.due?'A planned lighter week (about 15% less load, one fewer set) lets your body catch up, then your next block starts.':'A deload week (about 15% lighter, one fewer set) usually brings strength back.'}</p><div class="row"><button class="btn primary grow" data-a="startDeload">Start deload week</button><button class="btn grow" data-a="snoozeDeload">Not now</button></div></div>`;
 }
 function weekCard(){
   const W=weekPlan();
-  return `<div class="card"><div class="row"><div class="eyebrow grow">This week</div><span class="muted">${W.count} session${W.count===1?'':'s'} this week</span></div>
+  return `<div class="card"><div class="row"><div class="eyebrow grow">This week${deloadActive()?' · deload':(()=>{const b=blockInfo();return b?(b.due?' · block complete':` · block week ${b.wk} of ${b.total}`):''})()}</div><span class="muted">${W.count} session${W.count===1?'':'s'} this week</span></div>
     <div class="week">${W.days.map(d=>`<div class="wd ${d.status}${d.d===W.today?' today':''}" title="${esc(d.label+': '+(d.name||d.status))}"><b>${d.label[0]}</b><i>${d.status==='done'?'✓':d.status==='missed'?'✕':d.status==='planned'?esc((d.name||'W')[0]):''}</i><small>${esc(d.status==='planned'||d.status==='done'?d.name.split(' ')[0]:d.status==='missed'?'Missed':'')}</small></div>`).join('')}</div>
     ${W.note?`<p class="muted">${esc(W.note)}</p>`:''}</div>`;
 }
@@ -871,7 +876,7 @@ function vExercises(){
     <div id="exList"></div>
     <button class="btn primary block" data-a="newExercise">+ Add custom exercise</button>`;
 }
-function filterEx(q){q=q.trim().toLowerCase();return [...S.exercises].filter(e=>!q||e.name.toLowerCase().includes(q)||(e.muscle||'').toLowerCase().includes(q)||(e.equip||'').includes(q)).sort((a,b)=>a.name.localeCompare(b.name))}
+function filterEx(q){const words=q.trim().toLowerCase().split(/\s+/).filter(Boolean);return [...S.exercises].filter(e=>{const hay=`${e.name} ${e.muscle||''} ${e.equip||''}`.toLowerCase();return words.every(w=>hay.includes(w))}).sort((a,b)=>a.name.localeCompare(b.name))}
 function renderExList(){
   const el=$('#exList');if(!el)return;
   const list=filterEx($('#exSearch')?.value||'');
@@ -883,6 +888,9 @@ function vSettings(){
     <h2>Training days</h2>
     <div class="card"><div class="chips">${DAYS.map((d,i)=>`<button class="chip ${S.days.includes(i)?'on':''}" data-a="dayT" data-v="${i}" aria-pressed="${S.days.includes(i)}">${d}</button>`).join('')}</div>
     <p class="muted">LiftLog plans your week on these days. Miss one and it reshuffles the rest of the week, keeping a rest day between sessions where it can.</p></div>
+    <h2>Training block</h2>
+    <div class="card"><div class="chips">${[[4,'4 weeks'],[5,'5 weeks'],[6,'6 weeks'],[0,'Off']].map(([v,l])=>`<button class="chip ${(S.blockWeeks||0)===v?'on':''}" data-a="blockW" data-v="${v}" aria-pressed="${(S.blockWeeks||0)===v}">${l}</button>`).join('')}</div>
+    <p class="muted">${(()=>{const b=blockInfo();return deloadActive()?`Deload week until ${fmtDate(S.deloadUntil)}. Your next block starts after it.`:b?`You’re in week ${Math.min(b.wk,b.total)} of ${b.total}. A deload week is planned after week ${b.total}.`:'No planned deloads. LiftLog still suggests one when your lifts stall or check-ins say you’re worn out.'})()}</p></div>
     <h2>Equipment profiles</h2>
     <div class="list">${S.profiles.map(p=>`<button class="item" data-a="editProfile" data-id="${esc(p.id)}"><span><strong>${esc(p.name)}</strong>${p.id===S.profileId?' <span class="pill">ACTIVE</span>':''}<br><span class="muted">${esc(p.equip.join(', '))}</span></span><span class="muted">Edit ›</span></button>`).join('')}</div>
     <button class="btn block" data-a="newProfile">+ New equipment profile</button>
@@ -1000,7 +1008,7 @@ function renderPick(){
   const q=($('#pickSearch')?.value||'').trim();
   const exists=S.exercises.some(e=>e.name.toLowerCase()===q.toLowerCase());
   const items=(q&&!exists?`<button class="item" data-a="pickNew"><strong>+ Create “${esc(q)}”</strong></button>`:'')+
-    filterEx(q).map(e=>`<button class="item ${avail(e)?'':'off'}" data-a="pick" data-id="${e.id}"><span><strong>${esc(e.name)}</strong><br><span class="muted">${esc(TYPES[e.type])}${avail(e)?'':` · no ${esc(e.equip)} in ${esc(profile().name)}`}</span></span><span class="muted">${esc(e.muscle)}</span></button>`).join('');
+    filterEx(q).map(e=>`<button class="item ${avail(e)?'':'off'}" data-a="pick" data-id="${e.id}"><span><strong>${esc(e.name)}</strong><br><span class="muted">${esc(TYPES[e.type])}${avail(e)?'':setup?` · needs ${esc(e.equip)}`:` · no ${esc(e.equip)} in ${esc(profile().name)}`}</span></span><span class="muted">${esc(e.muscle)}</span></button>`).join('');
   $('#pickList').innerHTML=items?`<div class="list">${items}</div>`:'';
 }
 function closePick(){const m=$('#modal');m.hidden=true;m.innerHTML=''}
@@ -1140,7 +1148,10 @@ function handleVoice(t){
 
 /* ================= first-run setup ================= */
 let setup=null;
-const SETUP_STEPS=6;
+const SETUP_STEPS=7;
+const SPLITS={fb:['fbA','fbB'],ul:['upper','lower'],ppl:['push','pull','legs']};
+const defaultSplit=n=>n>=5?'ppl':n===4?'ul':'fb';
+let setupTarget=null;
 const PREF={
  'h-push':['Bench Press (Barbell)','Dumbbell Bench Press','Chest Press (Machine)','Push-Up'],
  'h-push2':['Incline Bench Press (Dumbbell)','Dumbbell Bench Press','Dip','Push-Up'],
@@ -1178,8 +1189,8 @@ function pickFor(slot,used,su){
   for(const n of list){const e=S.exercises.find(x=>x.name===n);if(e&&su.equip.includes(e.equip)&&!used.has(e.id))return e}
   return null;
 }
-function buildPlan(su){
-  return planKeys(su.days.length).map(k=>{const [name,slots]=TEMPLATES[k],used=new Set(),items=[];
+function buildPlan(su,keys){
+  return (keys||planKeys(su.days.length)).map(k=>{const [name,slots]=TEMPLATES[k],used=new Set(),items=[];
     slots.forEach((slot,i)=>{const e=pickFor(slot,used,su);if(!e)return;used.add(e.id);const main=i<2;
       items.push({exId:e.id,sets:su.level==='new'?(main?3:2):su.level==='exp'&&main?4:3})});
     return {name,items}});
@@ -1188,7 +1199,10 @@ function applyGoal(goal){
   const G={strength:[[4,6,180],[8,12,90]],muscle:[[6,10,120],[10,15,75]],fitness:[[8,12,90],[12,15,60]]}[goal];if(!G)return;
   for(const e of S.exercises)if(e.type==='weight'){const [mn,mx,rest]=G[COMPOUND.has(e.pattern)?0:1];Object.assign(e,{repMin:mn,repMax:mx,rest})}
 }
-function newSetup(step){return {step,unit:S.unit,level:S.level,goal:S.goal,place:step?S.profileId:null,equip:step?[...profile().equip]:[],days:S.days.length?[...S.days]:[0,2,4],mins:S.sessionMin??45}}
+function planSig(su){return JSON.stringify([su.level,[...su.equip].sort(),su.days.length])}
+function newSetup(step){const su={step,unit:S.unit,level:S.level,goal:S.goal,place:step?S.profileId:null,equip:step?[...profile().equip]:[],days:S.days.length?[...S.days]:[0,2,4],mins:S.sessionMin??45,block:step?(S.blockWeeks||0):null,plan:null,split:'custom'};
+  const mine=S.routines.filter(r=>r.fromSetup);if(step&&mine.length){su.plan=mine.map(r=>({name:r.name,items:r.items.map(i=>({...i}))}));su.sig=planSig(su)}
+  return su}
 function vSetup(){
   const su=setup,st=su.step;
   const opt=(k,v,title,desc)=>`<button class="opt ${su[k]===v?'on':''}" data-a="suPick" data-k="${k}" data-v="${v}" aria-pressed="${su[k]===v}"><strong>${title}</strong><span>${desc}</span></button>`;
@@ -1196,7 +1210,7 @@ function vSetup(){
   const head=(q,help)=>`<div class="eyebrow">Step ${st} of ${SETUP_STEPS}</div><div class="prog"><span style="width:${st/SETUP_STEPS*100}%"></span></div><h3>${q}</h3>${help?`<p class="muted">${help}</p>`:''}`;
   if(st===0)return `<div class="hero"><div class="eyebrow">LiftLog</div><h2>Your lifting coach that works with no signal.</h2>
       <ul><li><b>1</b><span>Tells you exactly what to lift each set, and why it changed since last time.</span></li><li><b>2</b><span>Runs your rest timers and moves to the next set for you.</span></li><li><b>3</b><span>No account. Everything stays on this phone.</span></li></ul></div>
-    <p class="muted">Six quick questions and you’ll have a plan built for your goal, schedule and equipment.</p>
+    <p class="muted">A few quick questions, then build your own plan for your goal, schedule and equipment.</p>
     <button class="btn primary big block" data-a="suNext">Set up my plan</button>
     <button class="btn block ghost" data-a="suSample">Look around with sample data first</button>`;
   if(st===1)return head('Which units do you use?')+opt('unit','lb','Pounds (lb)','45 lb bar · plates from 2.5 to 45 lb')+opt('unit','kg','Kilograms (kg)','20 kg bar · plates from 1.25 to 25 kg')+nav(!!su.unit);
@@ -1219,25 +1233,54 @@ function vSetup(){
     <p class="muted">${su.days.length?`${su.days.length} day${su.days.length>1?'s':''} a week → ${planTitle(su.days.length)}`:'Pick at least one day.'}</p>
     <div><div class="eyebrow" style="margin-bottom:8px">How long is a typical session?</div><div class="seg five" style="grid-template-columns:repeat(4,1fr)">${[[30,'30 min'],[45,'45 min'],[60,'60 min'],[null,'No limit']].map(([v,l])=>`<button data-a="suMins" data-v="${v??''}" class="${su.mins===v?'on':''}" aria-pressed="${su.mins===v}">${l}</button>`).join('')}</div></div>
     <p class="muted">Longer routines get trimmed to fit, keeping your main lifts.</p>`+nav(su.days.length>0);
-  const plan=buildPlan(su),U=su.unit;
-  return head('Your starter plan')+`<div class="card"><div class="row"><strong class="grow">${planTitle(su.days.length)}</strong><span class="muted">${su.days.map(d=>DAYS[d]).join(' · ')}</span></div>
-      <p class="muted">${{strength:'Strength focus',muscle:'Muscle-building focus',fitness:'General fitness focus'}[su.goal]} · ${{new:'beginner-friendly',some:'intermediate',exp:'experienced'}[su.level]} · ${{gym:'commercial gym',home:'home',travel:'travel'}[su.place]} equipment${su.mins?` · fits ${su.mins} min`:''}</p></div>
-    ${plan.map(r=>`<div class="card"><strong>${esc(r.name)}</strong><div>${r.items.map(i=>`<div class="exline"><span>${esc(exName(i.exId))}</span><span class="muted">${i.sets} sets</span></div>`).join('')}</div></div>`).join('')}
-    <p class="muted">Weights start blank. In your first session LiftLog asks you to find a comfortable weight for each lift (in ${U}), then sets every target after that.</p>`
-    +nav(true,'Start training','suFinish');
+  if(st===6){const days=su.plan||[];
+    return head('Build your plan','Start from a suggested split, then add, swap or remove exercises. Each day becomes a routine, and LiftLog rotates through them on your training days.')
+    +`<div class="chips">${[['fb','Full body'],['ul','Upper / Lower'],['ppl','Push / Pull / Legs'],['custom','Custom']].map(([k,l])=>`<button class="chip ${su.split===k?'on':''}" data-a="suSplit" data-v="${k}" aria-pressed="${su.split===k}">${l}</button>`).join('')}</div>`
+    +days.map((d,di)=>`<div class="card"><div class="row"><input type="text" class="dayname grow" id="day-${di}" data-day="${di}" value="${esc(d.name)}" aria-label="Workout day name"><button class="x" data-a="suDelDay" data-d="${di}" aria-label="Remove ${esc(d.name)}">✕</button></div>
+      <div>${d.items.map((it,ii)=>`<div class="ritem"><span class="nm">${esc(exName(it.exId))}</span><button class="mini-step" data-a="suSets" data-d="${di}" data-i="${ii}" data-v="-1" aria-label="Fewer sets">−</button><span class="muted" style="min-width:42px;text-align:center">${it.sets} sets</span><button class="mini-step" data-a="suSets" data-d="${di}" data-i="${ii}" data-v="1" aria-label="More sets">+</button><button class="btn sm" data-a="suSwapEx" data-d="${di}" data-i="${ii}">Swap</button><button class="x" data-a="suDelEx" data-d="${di}" data-i="${ii}" aria-label="Remove ${esc(exName(it.exId))}">✕</button></div>`).join('')||'<p class="muted">No exercises yet.</p>'}</div>
+      <button class="btn sm block" data-a="suAddEx" data-d="${di}">+ Add exercise</button></div>`).join('')
+    +`<div class="row"><button class="btn grow" data-a="suAddDay">+ Add a day</button>${su.split!=='custom'?'<button class="btn grow ghost" data-a="suResetPlan">Reset to suggested</button>':''}</div>`
+    +`<p class="muted">Put the big lifts first in each day. When you’re short on time LiftLog trims from the end.</p>`+nav(days.some(d=>d.items.length));}
+  const plan=(su.plan||[]).filter(d=>d.items.length),U=su.unit;
+  const BL=[[6,'6 weeks','Good for newer lifters: steady progress, then a deload in week 7.'],[5,'5 weeks','A balanced block for most people.'],[4,'4 weeks','For experienced lifters training hard.'],[0,'Only when I need it','No planned deload. LiftLog still suggests one if you struggle.']];
+  return head('How long should a training block be?','You progress for a few weeks, then take a lighter deload week so your body can catch up, and a new block starts. LiftLog also suggests a deload sooner if your lifts stall or your check-ins say you’re worn out.')
+    +BL.map(([v,t,d])=>`<button class="opt ${su.block===v?'on':''}" data-a="suBlock" data-v="${v}" aria-pressed="${su.block===v}"><strong>${t}</strong><span>${d}</span></button>`).join('')
+    +`<div class="card"><strong>Your plan</strong><p class="muted">${plan.length} workout${plan.length===1?'':'s'} (${plan.map(d=>esc(d.name)).join(', ')}) on ${su.days.map(d=>DAYS[d]).join(' · ')}${su.block?` · ${su.block}-week blocks, then a deload week`:''}.</p>
+    <p class="muted">Weights start blank. In your first session LiftLog asks you to find a comfortable weight for each lift (in ${U}), then sets every target after that.</p></div>`
+    +nav(su.block!=null,'Start training','suFinish');
 }
 function finishSetup(){
   const su=setup,hadData=S.workouts.length>0;
-  if(!hadData){S=fresh(false);if(su.unit==='kg')S.exercises=CATALOG.map(r=>exFromRow(r,'kg'))}
+  if(!hadData&&su.unit!==S.unit)for(const e of S.exercises){const r=CATALOG.find(r=>r[0]===e.name);if(r)e.inc=exFromRow(r,su.unit).inc}
   S.unit=su.unit;applyGoal(su.goal);
   const prof=S.profiles.find(p=>p.id===su.place);if(prof)prof.equip=[...su.equip];S.profileId=su.place;
   Object.assign(S,{days:[...su.days].sort((a,b)=>a-b),sessionMin:su.mins,level:su.level,goal:su.goal});
-  const plan=buildPlan(su);
+  const plan=(su.plan||[]).filter(d=>d.items.length).map(d=>({name:d.name.trim()||'Workout',items:d.items.map(i=>({...i}))}));
+  if(!plan.length){toast('Add at least one exercise to your plan');return}
+  S.blockWeeks=su.block||0;S.blockStart=su.block?Date.now():0;
   S.routines=[...S.routines.filter(r=>!r.fromSetup&&!r.sample),...plan.map(p=>({id:uid(),fromSetup:true,...p}))];
   S.setupDone=true;if(!S.startedAt)S.startedAt=Date.now();setup=null;tab='workout';view={preview:null,summary:null,limit:null};save();window.scrollTo(0,0);render();toast('Your plan is ready');
 }
 const suAct={
-  suNext:()=>{setup.step=Math.min(SETUP_STEPS,setup.step+1);window.scrollTo(0,0);render()},
+  suNext:()=>{const su=setup;su.step=Math.min(SETUP_STEPS,su.step+1);
+    if(su.step===6&&(!su.plan||su.sig!==planSig(su))){su.sig=planSig(su);su.split=defaultSplit(su.days.length);su.plan=buildPlan(su,SPLITS[su.split])}
+    if(su.step===7&&su.block==null)su.block={new:6,some:5,exp:4}[su.level]??5;
+    window.scrollTo(0,0);render()},
+  suSplit:b=>{const v=b.dataset.v;setup.split=v;setup.plan=v==='custom'?[{name:'Day 1',items:[]}]:buildPlan(setup,SPLITS[v]);render()},
+  suResetPlan:()=>{setup.plan=buildPlan(setup,SPLITS[setup.split]);render();toast('Back to the suggested days')},
+  suAddDay:()=>{setup.plan.push({name:`Day ${setup.plan.length+1}`,items:[]});render()},
+  suDelDay:b=>{if(setup.plan.length<=1){toast('Keep at least one day');return}setup.plan.splice(+b.dataset.d,1);render()},
+  suSets:b=>{const it=setup.plan[+b.dataset.d].items[+b.dataset.i];it.sets=Math.max(1,Math.min(10,it.sets+ +b.dataset.v));render()},
+  suDelEx:b=>{setup.plan[+b.dataset.d].items.splice(+b.dataset.i,1);render()},
+  suAddEx:b=>{setupTarget={di:+b.dataset.d,ii:null};openPick('setup')},
+  suSwapEx:b=>{const di=+b.dataset.d,ii=+b.dataset.i,ex=exById(setup.plan[di].items[ii].exId),used=new Set(setup.plan[di].items.map(i=>i.exId));setupTarget={di,ii};
+    const c=swapCandidates(ex,used);
+    openSheet(`<div class="row"><h3 class="grow">Swap ${esc(ex.name)}</h3><button class="btn sm" data-a="closeSheet">Close</button></div><p class="muted">Equivalent exercises with your equipment. Same movement first.</p>
+      ${c.length?`<div class="list">${c.map(e=>`<button class="item" data-a="suSwapTo" data-id="${e.id}"><span><strong>${esc(e.name)}</strong><br><span class="muted">${esc(e.equip)} · ${esc(TYPES[e.type])}</span></span><span class="muted">${e.pattern===ex.pattern?'Same movement':esc(e.muscle)}</span></button>`).join('')}</div>`:'<p>No equivalent with your equipment.</p>'}
+      <button class="btn block" data-a="suSwapAny">Choose any exercise</button>`)},
+  suSwapTo:b=>{const {di,ii}=setupTarget;setup.plan[di].items[ii].exId=b.dataset.id;closeSheet();render()},
+  suSwapAny:()=>{closeSheet();openPick('setup')},
+  suBlock:b=>{setup.block=+b.dataset.v;render()},
   suBack:()=>{if(setup.step<=1&&S.setupDone){setup=null;render();return}setup.step=Math.max(0,setup.step-1);window.scrollTo(0,0);render()},
   suPick:b=>{const k=b.dataset.k,v=b.dataset.v;setup[k]=v;if(k==='place')setup.equip=[...defaultProfiles().find(p=>p.id===v).equip];render()},
   suEq:b=>{const q=b.dataset.v;setup.equip=setup.equip.includes(q)?setup.equip.filter(x=>x!==q):[...setup.equip,q];render()},
@@ -1326,6 +1369,7 @@ const act={
   delExercise:async b=>{if(await ask({title:'Delete this exercise?',ok:'Delete',danger:true})){S.exercises=S.exercises.filter(e=>e.id!==b.dataset.id);save();render()}},
   voice:()=>{S.voice=!S.voice;save();render();if(S.voice)speak('Voice coach on.')},
   mic:()=>{audioUnlock();listening?(stopListening(),toast('Voice commands off')):startListening()},
+  blockW:b=>{const v=+b.dataset.v;S.blockWeeks=v;S.blockStart=v?(S.blockStart||Date.now()):0;save();render()},
   dayT:b=>{const i=+b.dataset.v;S.days=S.days.includes(i)?S.days.filter(d=>d!==i):[...S.days,i].sort((a,b)=>a-b);save();render()},
   newProfile:()=>{pdraft={id:null,name:'',equip:['bodyweight','other']};profileSheet()},
   editProfile:b=>{const p=S.profiles.find(p=>p.id===b.dataset.id);pdraft={id:p.id,name:p.name,equip:[...p.equip]};profileSheet()},
@@ -1336,8 +1380,8 @@ const act={
   pDel:async()=>{const id=pdraft.id;if(await ask({title:'Delete this profile?',ok:'Delete',danger:true})){S.profiles=S.profiles.filter(p=>p.id!==id);if(S.profileId===id)S.profileId=S.profiles[0].id;save();render()}},
   plates:()=>{const {ex,s}=S.active?curParts():{};plateSheet(ex&&ex.equip==='barbell'?+s?.w:0)},
   plToggle:b=>{const U=S.unit,v=+b.dataset.v;S.plates[U]=S.plates[U].includes(v)?S.plates[U].filter(p=>p!==v):[...S.plates[U],v];save();plateSheet(+$('#pl-target').value);if(S.active)render()},
-  startDeload:()=>{S.deloadUntil=Date.now()+7*864e5;save();render();toast(`Deload week until ${fmtDate(S.deloadUntil)}`)},
-  endDeload:()=>{S.deloadUntil=0;S.deloadSnooze=Date.now()+7*864e5;save();render();toast('Deload ended. Normal progression is back.')},
+  startDeload:()=>{S.deloadUntil=Date.now()+7*864e5;if(S.blockWeeks)S.blockStart=S.deloadUntil;save();render();toast(`Deload week until ${fmtDate(S.deloadUntil)}`)},
+  endDeload:()=>{S.deloadUntil=0;if(S.blockWeeks)S.blockStart=Date.now();S.deloadSnooze=Date.now()+7*864e5;save();render();toast('Deload ended. Normal progression is back.')},
   snoozeDeload:()=>{S.deloadSnooze=Date.now()+7*864e5;save();render()},
   export:()=>openSheet(`<h3>Copy backup</h3><p class="muted">Save this text in your notes or email it to yourself. Paste it into Restore backup on any device to bring your log back.</p>
     <textarea id="bk" readonly rows="7" aria-label="Backup text">${esc(JSON.stringify(S))}</textarea>
@@ -1364,6 +1408,7 @@ function picked(exId){
   closePick();
   if(pickMode==='routine'){draft.items.push({exId,sets:exById(exId)?.type==='emom'?10:3});routineSheet();return}
   if(pickMode==='swap'){doSwap(exId);return}
+  if(pickMode==='setup'){const {di,ii}=setupTarget;const ex=exById(exId);if(ii==null)setup.plan[di].items.push({exId,sets:ex?.type==='emom'?10:3});else setup.plan[di].items[ii].exId=exId;render();return}
   const A=S.active,ex=exById(exId),prevN=exHistory(exId)[0]?.sets.length||(ex.type==='emom'?10:3);A.exercises.push(makeEntry(exId,deloadAdj(recommend(ex,prevN),ex)));
   const ei=A.exercises.length-1,cur=A.exercises[A.cur.ei];
   if(!cur||firstOpen(cur)<0||A.phase==='checkin'||A.exercises.length===1){A.cur={ei,si:0};if(A.phase!=='rest')A.phase='set'}
@@ -1377,6 +1422,7 @@ document.addEventListener('click',e=>{
 document.addEventListener('input',e=>{
   const t=e.target;
   if(t.dataset.cf&&S.active){const {ex,s}=curParts();if(s){s[t.dataset.cf]=t.value;save();const d=$('#doneBtn');if(d)d.textContent=doneLabel(ex,s);const pl=$('#plateLine');if(pl)pl.textContent=plateLine(+s.w||0)}}
+  else if(t.dataset.day!=null&&setup?.plan){setup.plan[+t.dataset.day].name=t.value}
   else if(t.id==='exSearch')renderExList();
   else if(t.id==='pickSearch')renderPick();
   else if(t.id==='pl-target')renderPlates();

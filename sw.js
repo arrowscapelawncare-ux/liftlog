@@ -1,5 +1,5 @@
 // LiftLog service worker: caches the app on first visit so it opens with no connection.
-const CACHE = 'liftlog-v3';
+const CACHE = 'liftlog-v4';
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', e => {

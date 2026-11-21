@@ -7,7 +7,9 @@ A workout tracker that works completely offline. No account, no server, no inter
 LiftLog works like a personal trainer that lives on your phone. It remembers every set, raises the difficulty for you, runs the timers, and tells you what to do next and **why**.
 
 **First run**
-- **Setup in six questions:** units, experience, goal, where you train, which days, and session length. LiftLog builds a starter plan (full body, upper/lower, or push/pull/legs) from equipment you actually have. Or look around with sample data first.
+- **Guided setup:** units, experience, goal, where you train, which days, and session length.
+- **Build your plan:** start from a suggested split (full body, upper/lower, push/pull/legs) or a blank custom plan, then add, swap or remove exercises, change sets, rename days and add days.
+- **Training blocks:** progress for 4, 5 or 6 weeks, then LiftLog schedules a deload week and starts the next block. It still suggests an earlier deload if you're struggling.
 
 **Coaching**
 - **Automatic progressive overload:** rate each exercise Easy, Good or Hard (and flag if form broke down). LiftLog combines that with your reps and history to add a rep, add weight, repeat, or back off, and explains every change.

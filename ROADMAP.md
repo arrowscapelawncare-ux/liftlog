@@ -32,10 +32,16 @@ Goal: a lifting app that acts like a personal trainer. It remembers everything, 
 ## Phase 3: Planning brain ✅
 
 - [x] **Learned progression rate.** Each lift tracks how its past weight increases went. Lifts that held every increase move faster; lifts that stalled wait for two sessions at the top of the range.
+- [x] **Training blocks.** Choose 4, 5 or 6 weeks of progression; a deload week is planned at the end of each block, then a new block starts.
 - [x] **Automatic deloads.** If half or more of your recent lifts were missed or rated Hard (or two check-ins in a row were low energy and hard), LiftLog suggests a lighter week: about 15% less load, one fewer set. Deload sessions don't drag down future targets.
 - [x] **"I only have 25 minutes."** Pick 45 / 30 / 25 / 20 minutes on the plan. Accessories lose sets first, then get dropped; main compound lifts are protected. The plan lists exactly what changed.
 - [x] **Adaptive weekly schedule.** Choose training days. Miss one and the rest of the week reshuffles, keeping a rest day between sessions where possible, and tells you what rolls into next week.
 - [x] **Muscle recovery map.** Front/back body diagram plus a list with estimated readiness per muscle group from the last 7 days of sets, effort ratings and soreness check-ins. Clearly labeled as an estimate. The plan warns when a routine targets under-recovered muscles and suggests a better one.
+
+## Onboarding ✅
+
+- [x] **Guided setup** for new users (units, experience, goal, equipment, days, session length).
+- [x] **Plan builder:** suggested split or custom days; add, swap, remove and reorder exercises before training starts. Can be redone from Settings without losing history.
 
 ## Phase 4: Hands-free ✅ (with one platform limit)
 
