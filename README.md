@@ -6,18 +6,29 @@ A workout tracker that works completely offline. No account, no server, no inter
 
 LiftLog works like a personal trainer that lives on your phone. It remembers every set, raises the difficulty for you, runs the timers, and tells you what to do next and **why**.
 
-- **Automatic progressive overload:** rate each exercise Easy, Good or Hard (and flag if form broke down). LiftLog combines that with your actual reps and history to set your next target: add a rep, add weight, repeat, or back off. Every suggestion explains itself, e.g. *"Increase 5 lb. You reached the top of your rep range (10) on every set with good technique."*
-- **Today's plan:** before you start, see the estimated duration and a coach note for every exercise.
-- **Autopilot workouts:** one set at a time, weights and reps preloaded, one big Done button. It moves to the next set and exercise on its own.
-- **Exercise types:** weight + reps, bodyweight reps, and timed holds (planks go 30 → 35 → 40 s automatically, with a countdown).
-- **Smart rest timers:** each exercise has its own rest (heavy squats 3:00, curls 1:00). Beeps in the last 3 seconds and vibration where the phone allows.
-- **Voice coach (optional):** reads your next set aloud when rest ends.
-- **Check-in:** energy, soreness and difficulty in three taps at the end.
-- **Records:** heaviest weight, estimated 1-rep max, best set, most reps, longest hold.
-- **Routines:** build your own; "Up next" rotates through them.
-- **Backup and restore:** copy your whole log as text and paste it back on any device.
+**Coaching**
+- **Automatic progressive overload:** rate each exercise Easy, Good or Hard (and flag if form broke down). LiftLog combines that with your reps and history to add a rep, add weight, repeat, or back off, and explains every change.
+- **Learns each lift:** lifts that handle increases well move faster; lifts that stall wait longer at the top of the range.
+- **Deload weeks:** spots when you've been struggling and suggests a lighter week.
+- **Short on time:** tell it you have 45, 30, 25 or 20 minutes and it trims accessories first, keeping your main lifts.
+- **Weekly schedule:** pick training days; miss one and the week reshuffles.
+- **Muscle recovery map:** estimated readiness per muscle group, with a warning if today's routine targets sore muscles.
 
-See [ROADMAP.md](ROADMAP.md) for what's coming in phases 2 to 4.
+**During the workout**
+- **Autopilot:** one set at a time, targets preloaded, one big Done button, auto-advance.
+- **Exercise modes:** weight + reps, bodyweight reps, timed holds, distance (carries, sled), EMOM / intervals, and a tempo guide with audio cues.
+- **Smart rest timers** per exercise, with beeps and vibration.
+- **Swap:** machine taken? Get equivalent exercises for the equipment you have, with an estimated starting weight.
+- **Plate calculator:** plates per side shown under every barbell set.
+- **Hands-free:** optional voice coach reads your next set; voice commands ("done", "what's next", "skip rest", "135 pounds"...).
+
+**Tracking**
+- **Equipment profiles:** gym, home, travel. Routines adapt automatically.
+- **Records** for weight, estimated 1-rep max, reps, holds and distance.
+- **Progress charts** per exercise and weekly volume.
+- **Backup and restore** as copy-paste text.
+
+See [ROADMAP.md](ROADMAP.md) for how the phases were built and the one feature (watch app) that needs a native app.
 
 ## Use it offline
 
