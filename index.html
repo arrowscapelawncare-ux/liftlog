@@ -9,23 +9,28 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <title>LiftLog</title>
-<meta name="theme-color" content="#0f1216">
+<meta name="theme-color" content="#191b1e">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Big+Shoulders+Display:wght@600;700;800&display=swap">
 <style>
-/* Layout: one-column phone coach. Sticky header, bottom tabs; the workout screen shows one set at a time with one big button. */
+/* Layout: one-column phone coach. Sticky header, bottom tabs; the workout screen shows one set at a time with big numbers you can read at arm's length.
+   Palette: bumper-plate colors carry meaning. Blue (20 kg plate) = act, green = progress, yellow = hold steady, red = back off. Neutrals are cool steel and rubber-floor graphite. */
 :root{
-  --bg:#eef0f3;--surface:#ffffff;--surface2:#e2e6eb;--fg:#15191e;--muted:#5b6673;--line:#d4dae1;
-  --accent:#d23f2b;--on-accent:#ffffff;--chart:#d23f2b;--done:#e1f3e7;--done-fg:#1b7442;--on-done:#ffffff;--warn:#a85d00;--warn-bg:#fbefdc;--danger:#b8322a;--scrim:rgba(15,18,22,.45);
-  --font-display:"Space Grotesk",ui-sans-serif,system-ui,sans-serif;
-  --font-body:"Inter",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --bg:#edf0f3;--surface:#ffffff;--surface2:#e2e7ec;--fg:#14181c;--muted:#55606b;--line:#d2d9e0;
+  --accent:#1f56d0;--on-accent:#ffffff;--chart:#1f56d0;
+  --plate-green:#1d7a44;--plate-yellow:#efc21a;--plate-red:#c8352a;--on-yellow:#1a1606;
+  --done:#ddf0e4;--done-fg:#17703f;--on-done:#ffffff;--warn:#7a5a00;--warn-bg:#fbf0c7;--danger:#b3302a;--scrim:rgba(20,24,28,.45);
+  --font-display:"Big Shoulders Display","Arial Narrow","Roboto Condensed",sans-serif;
+  --font-body:"Atkinson Hyperlegible",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   color-scheme:light}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
-  --bg:#0f1216;--surface:#181c22;--surface2:#242a32;--fg:#eef1f4;--muted:#8f9aa7;--line:#2b323b;
-  --accent:#ff6a52;--on-accent:#1b0703;--chart:#f2563f;--done:#15301f;--done-fg:#5fd38e;--on-done:#08170e;--warn:#f0b35a;--warn-bg:#33260f;--danger:#ff8274;--scrim:rgba(0,0,0,.6);color-scheme:dark}}
+  --bg:#191b1e;--surface:#222529;--surface2:#2d3136;--fg:#edf0f3;--muted:#9aa4ae;--line:#353a41;
+  --accent:#5b8cff;--on-accent:#0a1430;--chart:#5b8cff;
+  --done:#183322;--done-fg:#61d391;--on-done:#08170e;--warn:#f3cd4b;--warn-bg:#352d10;--danger:#ff8a7c;--scrim:rgba(0,0,0,.6);color-scheme:dark}}
 :root[data-theme="dark"]{
-  --bg:#0f1216;--surface:#181c22;--surface2:#242a32;--fg:#eef1f4;--muted:#8f9aa7;--line:#2b323b;
-  --accent:#ff6a52;--on-accent:#1b0703;--chart:#f2563f;--done:#15301f;--done-fg:#5fd38e;--on-done:#08170e;--warn:#f0b35a;--warn-bg:#33260f;--danger:#ff8274;--scrim:rgba(0,0,0,.6);color-scheme:dark}
+  --bg:#191b1e;--surface:#222529;--surface2:#2d3136;--fg:#edf0f3;--muted:#9aa4ae;--line:#353a41;
+  --accent:#5b8cff;--on-accent:#0a1430;--chart:#5b8cff;
+  --done:#183322;--done-fg:#61d391;--on-done:#08170e;--warn:#f3cd4b;--warn-bg:#352d10;--danger:#ff8a7c;--scrim:rgba(0,0,0,.6);color-scheme:dark}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 [hidden]{display:none!important}
 body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.45 var(--font-body);padding-bottom:calc(76px + env(safe-area-inset-bottom,0px))}
@@ -35,9 +40,9 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 header{position:sticky;top:env(safe-area-inset-top,0px);background:var(--bg);border-bottom:1px solid var(--line);z-index:5;padding-block:14px 10px}
 header .in{max-width:640px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:8px}
 h1,h3,.fname{font-family:var(--font-display);font-weight:700;margin:0;text-wrap:balance}
-h1{font-size:21px;letter-spacing:-.01em;min-width:0;flex:1}
-h3{font-size:19px}
-h2{font-size:12px;color:var(--muted);font-weight:600;margin:12px 0 -2px;text-transform:uppercase;letter-spacing:.08em}
+h1{font-size:28px;line-height:1;min-width:0;flex:1}
+h3{font-size:24px;line-height:1.1}
+h2{font-size:15px;color:var(--muted);font-weight:700;margin:14px 0 -2px}
 .badge{font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:3px 10px;white-space:nowrap;font-variant-numeric:tabular-nums}
 .badge.saved::before{content:"● ";color:var(--done-fg)}
 .mic{width:36px;height:36px;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--fg);display:grid;place-items:center;cursor:pointer;flex:none}
@@ -73,10 +78,10 @@ label>span{display:block;font-size:13px;color:var(--muted);margin-bottom:4px}
 .tools{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .stats{display:flex;gap:8px}
 .stats>div{flex:1;min-width:0}
-.stats strong{font:700 18px var(--font-display);font-variant-numeric:tabular-nums}
+.stats strong{font:800 24px/1.1 var(--font-display);font-variant-numeric:tabular-nums}
 .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .kpi{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px;min-width:0}
-.kpi strong{display:block;font:700 21px var(--font-display);font-variant-numeric:tabular-nums}
+.kpi strong{display:block;font:800 28px/1.1 var(--font-display);font-variant-numeric:tabular-nums}
 .list{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;overflow:hidden}
 .item{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;text-align:left;background:var(--surface);border:0;border-bottom:1px solid var(--line);color:var(--fg);padding:13px 12px;font:15px var(--font-body);cursor:pointer}
 .item:last-child{border-bottom:0}
@@ -85,17 +90,17 @@ label>span{display:block;font-size:13px;color:var(--muted);margin-bottom:4px}
 .exline:first-child{border-top:0}
 .exline>span:first-child{min-width:0}
 .exline>span:last-child{white-space:nowrap;text-align:right}
-.pill{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.05em;padding:1px 7px;border-radius:999px;background:var(--surface2);color:var(--muted);vertical-align:1px;white-space:nowrap}
+.pill{display:inline-block;font-size:12px;font-weight:700;padding:1px 8px;border-radius:999px;background:var(--surface2);color:var(--muted);vertical-align:1px;white-space:nowrap}
 .pill.pr{background:var(--accent);color:var(--on-accent)}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
 .chip{padding:8px 12px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--fg);font:600 14px var(--font-body);cursor:pointer}
 .chip.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
 /* coach notes: the tag color encodes the kind of change */
-.tag{display:inline-block;font-size:12px;font-weight:700;padding:2px 8px;border-radius:6px;white-space:nowrap}
-.tag.up{background:var(--done);color:var(--done-fg)}
-.tag.reps,.tag.new{background:var(--surface2);color:var(--fg)}
-.tag.same{background:var(--surface2);color:var(--muted)}
-.tag.down{background:var(--warn-bg);color:var(--warn)}
+.tag{display:inline-block;font:800 17px/1.2 var(--font-display);padding:2px 9px;border-radius:4px;white-space:nowrap}
+.tag.up{background:var(--plate-green);color:#fff}
+.tag.reps,.tag.new{background:var(--accent);color:var(--on-accent)}
+.tag.same{background:var(--plate-yellow);color:var(--on-yellow)}
+.tag.down{background:var(--plate-red);color:#fff}
 .note{display:flex;flex-direction:column;gap:4px}
 .note p{margin:0;font-size:14px;color:var(--muted)}
 .plan{display:flex;flex-direction:column}
@@ -123,24 +128,26 @@ label>span{display:block;font-size:13px;color:var(--muted);margin-bottom:4px}
 .rbar{height:6px;border-radius:3px;background:var(--surface2);overflow:hidden}
 .rbar span{display:block;height:100%;background:var(--done-fg);border-radius:3px}
 /* focus mode */
-.eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
-.fname{font-size:26px;line-height:1.15}
+.eyebrow{font-size:14px;color:var(--muted);font-weight:700}
+.fname{font-size:36px;line-height:1}
 .field{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px}
-.step{width:56px;height:56px;flex:none;border-radius:12px;border:0;background:var(--surface2);color:var(--fg);font:600 28px var(--font-display);cursor:pointer}
+.step{width:58px;height:58px;flex:none;border-radius:50%;border:0;background:var(--surface2);color:var(--fg);font:700 30px var(--font-display);cursor:pointer}
 .fv{flex:1;min-width:0;text-align:center}
-.fv input{font:700 36px var(--font-display);text-align:center;background:transparent;border:0;padding:0;width:100%;font-variant-numeric:tabular-nums;-moz-appearance:textfield}
+.fv input{font:800 52px/1.05 var(--font-display);text-align:center;background:transparent;border:0;padding:0;width:100%;font-variant-numeric:tabular-nums;-moz-appearance:textfield}
 .fv input::-webkit-outer-spin-button,.fv input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
-.fv span{display:block;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
-.bigbtn{width:100%;min-height:76px;font:700 22px var(--font-display);border-radius:16px;background:var(--accent);color:var(--on-accent);border:0;cursor:pointer}
+.fv span{display:block;font-size:14px;color:var(--muted)}
+.bigbtn{width:100%;min-height:78px;font:800 30px var(--font-display);letter-spacing:.01em;border-radius:14px;background:var(--accent);color:var(--on-accent);border:0;cursor:pointer}
 .sets-strip{display:flex;gap:6px;flex-wrap:wrap}
 .dot{padding:4px 10px;border-radius:999px;background:var(--surface2);color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums}
 .dot.done{background:var(--done);color:var(--done-fg);font-weight:600}
 .dot.cur{background:var(--fg);color:var(--bg);font-weight:700}
 .timer{display:flex;flex-direction:column;align-items:center;gap:10px;padding:8px 0}
-.ring{--p:100;width:230px;height:230px;max-width:72vw;max-height:72vw;border-radius:50%;background:conic-gradient(var(--accent) calc(var(--p)*1%),var(--surface2) 0);display:grid;place-items:center}
+.ring{--p:100;--rc:var(--accent);width:230px;height:230px;max-width:72vw;max-height:72vw;border-radius:50%;background:conic-gradient(var(--rc) calc(var(--p)*1%),var(--surface2) 0);display:grid;place-items:center}
 .ring>div{width:86%;height:86%;border-radius:50%;background:var(--bg);display:grid;place-items:center;text-align:center;align-content:center;gap:2px}
-.ring strong{font:700 60px/1 var(--font-display);font-variant-numeric:tabular-nums}
-.ring .word{font:700 22px var(--font-display);text-transform:uppercase;letter-spacing:.06em}
+.ring.hold{--rc:var(--plate-yellow)}
+.ring.emom{--rc:var(--plate-green)}
+.ring strong{font:800 84px/.95 var(--font-display);font-variant-numeric:tabular-nums}
+.ring .word{font:800 30px var(--font-display)}
 .seg{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .seg.five{grid-template-columns:repeat(5,1fr)}
 .seg button{padding:14px 6px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--fg);font:600 15px var(--font-body);cursor:pointer}
@@ -156,7 +163,7 @@ label>span{display:block;font-size:13px;color:var(--muted);margin-bottom:4px}
 #mini{position:fixed;left:0;right:0;bottom:calc(66px + env(safe-area-inset-bottom,0px));z-index:7;background:var(--surface2);border-top:1px solid var(--line);overflow:hidden}
 #mini .fill{position:absolute;left:0;top:0;bottom:0;background:var(--accent);opacity:.16;transition:width .3s linear}
 #mini .in{position:relative;max-width:640px;margin:0 auto;padding-block:8px}
-#miniTxt{font:700 21px var(--font-display);font-variant-numeric:tabular-nums}
+#miniTxt{font:800 28px/1 var(--font-display);font-variant-numeric:tabular-nums}
 #toast{position:fixed;left:50%;top:calc(14px + env(safe-area-inset-top,0px));transform:translateX(-50%) translateY(-220%);visibility:hidden;background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:10px;font-weight:600;z-index:30;transition:transform .25s,visibility .25s;max-width:calc(100% - 32px)}
 #toast.show{transform:translateX(-50%) translateY(0);visibility:visible}
 .ritem{display:flex;align-items:center;gap:6px;padding:8px 0;border-top:1px solid var(--line)}
@@ -186,8 +193,10 @@ table.tv{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric
 .platevis{display:flex;align-items:center;justify-content:center;gap:3px;padding:12px 0;min-height:130px;overflow-x:auto}
 .platevis .barend{width:46px;height:10px;background:var(--muted);border-radius:3px}
 .platevis .collar{width:8px;height:26px;background:var(--muted);border-radius:2px}
-.platevis .pl{width:16px;border-radius:4px;background:var(--fg);display:flex;align-items:flex-end;justify-content:center}
-.platevis .pl span{font-size:10px;color:var(--bg);font-weight:700;writing-mode:vertical-rl;transform:rotate(180deg);padding:4px 0}
+.platevis .pl{width:18px;border-radius:4px;background:var(--fg);display:flex;align-items:flex-end;justify-content:center}
+.platevis .pl.c-red{background:var(--plate-red)}.platevis .pl.c-blue{background:#1f56d0}.platevis .pl.c-yellow{background:var(--plate-yellow)}.platevis .pl.c-green{background:var(--plate-green)}
+.platevis .pl.c-yellow span{color:var(--on-yellow)}.platevis .pl.c-red span,.platevis .pl.c-blue span,.platevis .pl.c-green span{color:#fff}
+.platevis .pl span{font-size:11px;color:var(--bg);font-weight:700;writing-mode:vertical-rl;transform:rotate(180deg);padding:4px 0}
 /* setup */
 .opt{display:flex;flex-direction:column;gap:2px;text-align:left;width:100%;padding:14px;border-radius:14px;border:1.5px solid var(--line);background:var(--surface);color:var(--fg);font:15px var(--font-body);cursor:pointer}
 .opt span{color:var(--muted);font-size:13px}
@@ -195,13 +204,13 @@ table.tv{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric
 .prog{height:6px;border-radius:3px;background:var(--surface2);overflow:hidden}
 .prog span{display:block;height:100%;background:var(--accent);transition:width .3s}
 .btn:disabled{opacity:.45;cursor:not-allowed}
-.dayname{font:700 17px var(--font-display);background:transparent!important;border:1px solid transparent!important;padding:4px 6px!important;border-radius:8px;color:var(--fg)}
+.dayname{font:800 24px var(--font-display);background:transparent!important;border:1px solid transparent!important;padding:4px 6px!important;border-radius:8px;color:var(--fg)}
 .dayname:focus{border-color:var(--line)!important}
 .hero{display:flex;flex-direction:column;gap:14px;padding-block:18px 6px}
-.hero h2{font:700 34px/1.08 var(--font-display);text-transform:none;letter-spacing:-.02em;color:var(--fg);margin:0;text-wrap:balance}
+.hero h2{font:800 50px/.95 var(--font-display);text-transform:none;color:var(--fg);margin:0;text-wrap:balance}
 .hero ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px}
 .hero li{display:grid;grid-template-columns:28px 1fr;gap:8px;align-items:start;font-size:15px}
-.hero li b{width:28px;height:28px;border-radius:8px;background:var(--surface2);display:grid;place-items:center;font:700 14px var(--font-display)}
+.hero li b{width:28px;height:28px;border-radius:50%;background:var(--accent);color:var(--on-accent);display:grid;place-items:center;font:800 17px var(--font-display)}
 p{margin:0}
 @media (prefers-reduced-motion:reduce){#toast,#mini .fill{transition:none}}
 </style>
@@ -714,16 +723,16 @@ function weekCard(){
 function recoveryCard(){
   if(!S.workouts.some(w=>Date.now()-w.start<7*864e5))return '<div class="card"><div class="eyebrow">Muscle recovery</div><p class="muted">Estimates of which muscles are ready for more work show up after your first workout.</p></div>';
   const R=readiness();
-  return `<div class="card"><div class="row"><div class="eyebrow grow">Muscle recovery</div><span class="pill">ESTIMATE</span></div>
+  return `<div class="card"><div class="row"><div class="eyebrow grow">Muscle recovery</div><span class="pill">Estimate</span></div>
     <div class="body-map">${bodyMap(R)}<div class="rlist">${GROUPS.map(g=>`<div><span>${g}</span><span class="rbar"><span style="width:${R[g]}%"></span></span><span>${R[g]}%</span></div>`).join('')}</div></div>
     <p class="muted">Estimated from the last 7 days of sets, how hard they felt, and your soreness check-ins. Not a medical measurement.</p></div>`;
 }
 function vHome(){
   const nx=upNext();
-  const card=nx?`<div class="card"><div class="eyebrow">Up next</div><div class="row"><h3 class="grow">${esc(nx.name)}</h3>${nx.sample?'<span class="pill">SAMPLE</span>':''}</div>
+  const card=nx?`<div class="card"><div class="eyebrow">Up next</div><div class="row"><h3 class="grow">${esc(nx.name)}</h3>${nx.sample?'<span class="pill">Sample</span>':''}</div>
       <div class="stats"><div><div class="muted">Estimated</div><strong>${estimateMinutes(nx.items)} min</strong></div><div><div class="muted">Exercises</div><strong>${nx.items.length}</strong></div><div><div class="muted">Last done</div><strong>${routineLast(nx.id)>0?shortDate(routineLast(nx.id)):'Never'}</strong></div></div>
       <button class="btn primary big block" data-a="preview" data-id="${nx.id}">See today’s plan</button></div>`:`<div class="card"><h3>Build your first routine</h3><p class="muted">Pick exercises and sets; LiftLog plans the weights and timers from there.</p><button class="btn primary block" data-a="newRoutine">+ New routine</button></div>`;
-  const others=S.routines.filter(r=>r!==nx).map(r=>`<button class="item" data-a="preview" data-id="${r.id}"><span><strong>${esc(r.name)}</strong>${r.sample?' <span class="pill">SAMPLE</span>':''}<br><span class="muted">${r.items.length} exercises · about ${estimateMinutes(r.items)} min</span></span><span class="muted">Plan ›</span></button>`).join('');
+  const others=S.routines.filter(r=>r!==nx).map(r=>`<button class="item" data-a="preview" data-id="${r.id}"><span><strong>${esc(r.name)}</strong>${r.sample?' <span class="pill">Sample</span>':''}<br><span class="muted">${r.items.length} exercises · about ${estimateMinutes(r.items)} min</span></span><span class="muted">Plan ›</span></button>`).join('');
   return `${profileSelect()}${deloadCard()}${card}${weekCard()}${recoveryCard()}${others?`<h2>Other routines</h2><div class="list">${others}</div>`:''}
     <div class="row"><button class="btn grow" data-a="newRoutine">+ New routine</button><button class="btn grow" data-a="startEmpty">Empty workout</button></div>`;
 }
@@ -737,7 +746,7 @@ function vPreview(){
   let rec='';if(low.length){const alt=S.routines.filter(x=>x.id!==r.id).map(x=>{const ms=routineMuscles(x.items);return {x,avg:ms.length?ms.reduce((a,g)=>a+R[g],0)/ms.length:0}}).sort((a,b)=>b.avg-a.avg)[0];
     rec=`<div class="card warn"><strong>Recovery check</strong><p class="muted" style="color:inherit">${low.map(g=>`${g} about ${R[g]}%`).join(', ')} recovered (estimate).${alt&&alt.avg>=70?` ${esc(alt.x.name)} works muscles that are more recovered.`:''}</p>${alt&&alt.avg>=70?`<button class="btn sm" data-a="preview" data-id="${alt.x.id}">See ${esc(alt.x.name)} instead</button>`:''}</div>`}
   const lim=view.limit,mins=estimateMinutes(plan);
-  return `<div class="card"><div class="row"><h3 class="grow">${esc(r.name)}</h3><span class="pill">${deloadActive()?'DELOAD':'READY'}</span></div>
+  return `<div class="card"><div class="row"><h3 class="grow">${esc(r.name)}</h3><span class="pill">${deloadActive()?'Deload':'Ready'}</span></div>
       <div class="stats"><div><div class="muted">Estimated duration</div><strong>${mins} min</strong></div><div><div class="muted">Exercises</div><strong>${plan.length}</strong></div></div>
       <div><div class="muted" style="margin-bottom:6px">Time available</div><div class="seg five">${[[null,'Full'],[60,'60'],[45,'45'],[30,'30'],[20,'20']].map(([v,l])=>`<button data-a="limit" data-v="${v??''}" class="${lim===v?'on':''}" aria-pressed="${lim===v}">${l}${v?'m':''}</button>`).join('')}</div></div>
       ${lim&&notes.length?`<div class="note"><div><span class="tag same">Shortened from ${before} min</span></div><p>${notes.map(esc).join(' · ')}. Main lifts are kept first.</p></div>`:lim&&!notes.length?'<p class="muted">The full session already fits.</p>':''}</div>
@@ -750,7 +759,7 @@ function vSummary(){
   const w=S.workouts.find(w=>w.id===view.summary);if(!w){view.summary=null;return vHome()}
   const prs=(w.prs||[]).filter(p=>typeof p!=='string');
   const next=w.exercises.map(x=>{const ex=exById(x.exId);if(!ex)return '';const rec=deloadAdj(recommend(ex,x.sets.length),ex);return `<div><div class="nm"><span>${esc(ex.name)}</span></div>${noteHtml(rec)}</div>`}).join('');
-  return `<div class="card"><h3>${esc(w.name)}${w.deload?' <span class="pill">DELOAD</span>':''}</h3><div class="stats"><div><div class="muted">Time</div><strong>${dur(w.end-w.start)}</strong></div><div><div class="muted">Volume</div><strong>${fmtNum(volume(w))} ${S.unit}</strong></div><div><div class="muted">Sets</div><strong>${setCount(w)}</strong></div></div></div>
+  return `<div class="card"><h3>${esc(w.name)}${w.deload?' <span class="pill">Deload</span>':''}</h3><div class="stats"><div><div class="muted">Time</div><strong>${dur(w.end-w.start)}</strong></div><div><div class="muted">Volume</div><strong>${fmtNum(volume(w))} ${S.unit}</strong></div><div><div class="muted">Sets</div><strong>${setCount(w)}</strong></div></div></div>
     ${prs.length?`<div class="card"><div class="eyebrow">New records</div><div>${prs.map(p=>`<div class="exline"><span>${esc(exName(p.exId))}</span><span><span class="pill pr">PR</span> ${esc(p.text)}</span></div>`).join('')}</div></div>`:''}
     <div class="card"><div class="eyebrow">Next time</div><div class="plan">${next}</div></div>
     <button class="btn primary big block" data-a="closeSummary">Done</button>`;
@@ -806,14 +815,14 @@ function vRest(){
 function vHold(){
   const {A,x,ex}=curParts();
   return `<div><div class="eyebrow">Set ${A.cur.si+1} of ${x.sets.length}</div><div class="fname">${esc(ex.name)}</div></div>
-    <div class="timer"><div class="ring" id="ring"><div><strong id="holdBig">${A.hold.target}</strong><span class="muted" id="holdLbl">Get ready</span></div></div></div>
+    <div class="timer"><div class="ring hold" id="ring"><div><strong id="holdBig">${A.hold.target}</strong><span class="muted" id="holdLbl">Get ready</span></div></div></div>
     <button class="bigbtn" data-a="holdStop">Stop · log time held</button>
     <button class="btn block ghost" data-a="holdCancel">Cancel this hold</button>`;
 }
 function vEmom(){
   const {A,ex}=curParts(),E=A.emom,U=S.unit,round=emomRound();
   return `<div><div class="eyebrow">EMOM · a new round every ${clock(E.interval)}</div><div class="fname">${esc(ex.name)}</div><div class="muted">Do ${E.r} reps${E.w?` at ${fmtW(E.w)} ${U}`:''}, then rest until the next beep.</div></div>
-    <div class="timer"><div class="ring" id="ring"><div><span class="muted" id="emRound">Get ready</span><strong id="emBig">0:03</strong><span class="muted">until next round</span></div></div></div>
+    <div class="timer"><div class="ring emom" id="ring"><div><span class="muted" id="emRound">Get ready</span><strong id="emBig">0:03</strong><span class="muted">until next round</span></div></div></div>
     <button class="check ${E.missed.includes(round)?'on':''}" data-a="emomMiss" id="emMiss" aria-pressed="${E.missed.includes(round)}"><span class="box">${E.missed.includes(round)?'✓':''}</span>I missed this round</button>
     <button class="btn block ghost" data-a="emomEnd">End EMOM early</button>`;
 }
@@ -862,9 +871,9 @@ function vHistory(){
   return kpis+chart+list.map(w=>{
     const prs=prIds(w);
     const lines=w.exercises.map(x=>{const ex=exById(x.exId);const best=x.sets.reduce((b,s)=>setScore(s,ex)>setScore(b,ex)?s:b,x.sets[0]);
-      return `<div class="exline"><span>${x.sets.length} × ${esc(exName(x.exId))}${prs.has(x.exId)?' <span class="pill pr">PR</span>':''}${x.feel?` <span class="pill">${esc(x.feel.toUpperCase())}</span>`:''}</span><span class="muted">best ${best?esc(fmtSet(best,ex)):''}</span></div>`}).join('');
+      return `<div class="exline"><span>${x.sets.length} × ${esc(exName(x.exId))}${prs.has(x.exId)?' <span class="pill pr">PR</span>':''}${x.feel?` <span class="pill">${esc(x.feel[0].toUpperCase()+x.feel.slice(1))}</span>`:''}</span><span class="muted">best ${best?esc(fmtSet(best,ex)):''}</span></div>`}).join('');
     const c=w.checkin;
-    return `<div class="card"><div><strong>${esc(w.name)}</strong>${w.sample?' <span class="pill">SAMPLE</span>':''}${w.deload?' <span class="pill">DELOAD</span>':''}<div class="muted">${fmtDate(w.start)}${c?` · Energy ${CHECK.energy[c.energy-1]||'–'} · Soreness ${CHECK.soreness[c.soreness-1]||'–'} · ${CHECK.difficulty[c.difficulty-1]||'–'}`:''}</div></div>
+    return `<div class="card"><div><strong>${esc(w.name)}</strong>${w.sample?' <span class="pill">Sample</span>':''}${w.deload?' <span class="pill">Deload</span>':''}<div class="muted">${fmtDate(w.start)}${c?` · Energy ${CHECK.energy[c.energy-1]||'–'} · Soreness ${CHECK.soreness[c.soreness-1]||'–'} · ${CHECK.difficulty[c.difficulty-1]||'–'}`:''}</div></div>
       <div class="stats"><div><div class="muted">Time</div><strong>${dur(w.end-w.start)}</strong></div><div><div class="muted">Volume</div><strong>${fmtNum(volume(w))} ${S.unit}</strong></div><div><div class="muted">Sets</div><strong>${setCount(w)}</strong></div></div>
       <div>${lines}</div>
       <div class="row"><button class="btn sm" data-a="saveRoutine" data-id="${w.id}">Save as routine</button><span class="grow"></span><button class="btn sm danger" data-a="delWorkout" data-id="${w.id}">Delete</button></div></div>`;
@@ -892,7 +901,7 @@ function vSettings(){
     <div class="card"><div class="chips">${[[4,'4 weeks'],[5,'5 weeks'],[6,'6 weeks'],[0,'Off']].map(([v,l])=>`<button class="chip ${(S.blockWeeks||0)===v?'on':''}" data-a="blockW" data-v="${v}" aria-pressed="${(S.blockWeeks||0)===v}">${l}</button>`).join('')}</div>
     <p class="muted">${(()=>{const b=blockInfo();return deloadActive()?`Deload week until ${fmtDate(S.deloadUntil)}. Your next block starts after it.`:b?`You’re in week ${Math.min(b.wk,b.total)} of ${b.total}. A deload week is planned after week ${b.total}.`:'No planned deloads. LiftLog still suggests one when your lifts stall or check-ins say you’re worn out.'})()}</p></div>
     <h2>Equipment profiles</h2>
-    <div class="list">${S.profiles.map(p=>`<button class="item" data-a="editProfile" data-id="${esc(p.id)}"><span><strong>${esc(p.name)}</strong>${p.id===S.profileId?' <span class="pill">ACTIVE</span>':''}<br><span class="muted">${esc(p.equip.join(', '))}</span></span><span class="muted">Edit ›</span></button>`).join('')}</div>
+    <div class="list">${S.profiles.map(p=>`<button class="item" data-a="editProfile" data-id="${esc(p.id)}"><span><strong>${esc(p.name)}</strong>${p.id===S.profileId?' <span class="pill">Active</span>':''}<br><span class="muted">${esc(p.equip.join(', '))}</span></span><span class="muted">Edit ›</span></button>`).join('')}</div>
     <button class="btn block" data-a="newProfile">+ New equipment profile</button>
     <h2>Tools</h2>
     <div class="card"><button class="btn block" data-a="plates">Plate calculator</button>
@@ -975,10 +984,11 @@ function plateSheet(w){
     <div><div class="eyebrow" style="margin-bottom:8px">Plates you have (${U})</div><div class="chips">${ALLPLATES[U].map(p=>`<button class="chip ${S.plates[U].includes(p)?'on':''}" data-a="plToggle" data-v="${p}" aria-pressed="${S.plates[U].includes(p)}">${p}</button>`).join('')}</div></div>`);
   renderPlates();
 }
+function plateColor(x){const m=S.unit==='kg'?{25:'red',20:'blue',15:'yellow',10:'green'}:{55:'red',45:'blue',35:'yellow',25:'green'};return m[x]?'c-'+m[x]:''}
 function renderPlates(){
   const out=$('#pl-out');if(!out)return;const U=S.unit,w=+$('#pl-target').value||0,p=platesFor(w),max=Math.max(...ALLPLATES[U]);
   if(p.below){out.innerHTML=`<p>${w?`${fmtW(w)} ${U} is below the ${S.bar[U]} ${U} bar.`:'Enter a target weight.'}</p>`;return}
-  const vis=`<div class="platevis" aria-hidden="true"><div class="barend"></div><div class="collar"></div>${p.per.map(x=>`<div class="pl" style="height:${Math.round(40+80*x/max)}px"><span>${fmtW(x)}</span></div>`).join('')}<div class="barend" style="width:18px"></div></div>`;
+  const vis=`<div class="platevis" aria-hidden="true"><div class="barend"></div><div class="collar"></div>${p.per.map(x=>`<div class="pl ${plateColor(x)}" style="height:${Math.round(40+80*x/max)}px"><span>${fmtW(x)}</span></div>`).join('')}<div class="barend" style="width:18px"></div></div>`;
   out.innerHTML=`<div class="eyebrow">Load each side</div>${vis}<strong>${p.per.length?p.per.map(fmtW).join(' + '):'Empty bar'}</strong>${p.rem>0?`<p class="muted">Closest you can load is ${fmtW(w-p.rem)} ${U}: ${fmtW(p.rem)} ${U} short with these plates.</p>`:`<p class="muted">${fmtW(w)} ${U} total with a ${S.bar[U]} ${U} bar.</p>`}`;
 }
 function swapSheet(){
@@ -992,7 +1002,7 @@ function curWeight(){const {x,s}=curParts();return +s?.w||+x?.rec?.w||(exHistory
 function overviewSheet(){
   sheetRender=overviewSheet;
   const A=S.active;
-  const rows=A.exercises.map((x,ei)=>{const ex=exById(x.exId);return `<div class="card"><div class="row"><strong class="grow">${esc(ex?.name||'Exercise')}</strong>${ei===A.cur.ei?'<span class="pill">NOW</span>':''}</div>${strip(x,ex,-1)}
+  const rows=A.exercises.map((x,ei)=>{const ex=exById(x.exId);return `<div class="card"><div class="row"><strong class="grow">${esc(ex?.name||'Exercise')}</strong>${ei===A.cur.ei?'<span class="pill">Now</span>':''}</div>${strip(x,ex,-1)}
     <div class="row"><button class="btn sm" data-a="jump" data-ei="${ei}">Go to</button><button class="btn sm" data-a="addSet" data-ei="${ei}">+ ${ex?.type==='emom'?'Round':'Set'}</button><span class="grow"></span><button class="btn sm danger" data-a="delEx" data-ei="${ei}">Remove</button></div></div>`}).join('');
   openSheet(`<div class="row"><h3 class="grow">All exercises</h3><button class="btn sm" data-a="closeSheet">Close</button></div>${rows}
     <button class="btn block" data-a="addEx">+ Add exercise</button>
@@ -1230,7 +1240,7 @@ function vSetup(){
     +nav(!!su.place&&su.equip.length>0);
   if(st===5)return head('When do you want to train?',su.level==='new'?'Starting out, 2 or 3 days a week with a rest day between is plenty.':'Pick the days you can usually make it.')
     +`<div class="chips">${DAYS.map((d,i)=>`<button class="chip ${su.days.includes(i)?'on':''}" data-a="suDay" data-v="${i}" aria-pressed="${su.days.includes(i)}">${d}</button>`).join('')}</div>
-    <p class="muted">${su.days.length?`${su.days.length} day${su.days.length>1?'s':''} a week → ${planTitle(su.days.length)}`:'Pick at least one day.'}</p>
+    <p class="muted">${su.days.length?`${su.days.length} day${su.days.length>1?'s':''} a week: ${planTitle(su.days.length).toLowerCase()}`:'Pick at least one day.'}</p>
     <div><div class="eyebrow" style="margin-bottom:8px">How long is a typical session?</div><div class="seg five" style="grid-template-columns:repeat(4,1fr)">${[[30,'30 min'],[45,'45 min'],[60,'60 min'],[null,'No limit']].map(([v,l])=>`<button data-a="suMins" data-v="${v??''}" class="${su.mins===v?'on':''}" aria-pressed="${su.mins===v}">${l}</button>`).join('')}</div></div>
     <p class="muted">Longer routines get trimmed to fit, keeping your main lifts.</p>`+nav(su.days.length>0);
   if(st===6){const days=su.plan||[];
