@@ -206,6 +206,16 @@ table.tv{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric
 .btn:disabled{opacity:.45;cursor:not-allowed}
 .dayname{font:800 24px var(--font-display);background:transparent!important;border:1px solid transparent!important;padding:4px 6px!important;border-radius:8px;color:var(--fg)}
 .dayname:focus{border-color:var(--line)!important}
+.ritem2{border-top:1px solid var(--line)}
+.ritem2:first-child{border-top:0}
+.rhead{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:2px;background:none;border:0;color:var(--fg);text-align:left;padding:10px 0;font:15px var(--font-body);cursor:pointer}
+.rhead strong{font-weight:700}
+.rhead[aria-expanded="true"] strong{color:var(--accent)}
+.rhead .muted::after{content:" · Edit";color:var(--accent)}
+.rhead[aria-expanded="true"] .muted::after{content:" · Close"}
+.ied{display:flex;flex-direction:column;gap:10px;padding:2px 0 12px}
+.x:disabled{opacity:.3;cursor:default}
+.mynote{background:var(--warn-bg);border-radius:12px;padding:10px 12px;font-size:15px}
 .hero{display:flex;flex-direction:column;gap:14px;padding-block:18px 6px}
 .hero h2{font:800 50px/.95 var(--font-display);text-transform:none;color:var(--fg);margin:0;text-wrap:balance}
 .hero ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px}
@@ -396,13 +406,17 @@ const avail=ex=>(setup?setup.equip:profile().equip).includes(ex.equip);
 // Every recommendation carries a short label and a plain-language reason.
 function exHistory(exId){const out=[];for(const w of sortedWorkouts())for(const x of w.exercises)if(x.exId===exId&&x.sets.length&&!x.deload)out.push(x);return out}
 const workW=x=>Math.max(0,...x.sets.map(s=>+s.w||0));
+const OVR=['repMin','repMax','target','rest','tempo'];
+function effEx(ex,o){if(!ex)return ex;const e={...ex};if(o)for(const k of OVR)if(o[k]!=null)e[k]=o[k];if(e.repMin>e.repMax)[e.repMin,e.repMax]=[e.repMax,e.repMin];return e}
+const ovOf=i=>{const o={};for(const k of [...OVR,'w','note'])if(i[k]!=null&&i[k]!=='')o[k]=i[k];return o};
+const exOf=x=>effEx(exById(x.exId),x.ov);
 function missed(ex,x){
   if(x.form)return true;
   const r=x.rec||{};
   if(ex.type==='time'){const tg=r.t||ex.target;return x.sets.some(s=>(+s.t||0)<tg)}
   if(ex.type==='distance'){const tg=r.d||ex.target;return x.sets.some(s=>(+s.d||0)<tg)}
   if(ex.type==='reps'||ex.type==='emom'){const tg=r.r||ex.target;return x.sets.some(s=>(+s.r||0)<tg)||(ex.type==='emom'&&r.sets&&x.sets.length<r.sets)}
-  const w0=workW(x);return x.sets.filter(s=>(+s.w||0)===w0).some(s=>(+s.r||0)<ex.repMin);
+  const w0=workW(x);return x.sets.filter(s=>(+s.w||0)===w0).some(s=>(+s.r||0)<(r.rMin||ex.repMin));
 }
 // Phase 3: how this lift responds to weight increases, learned from its own history.
 function progressRate(ex){
@@ -493,7 +507,7 @@ function deloadAdvice(){
 }
 // Phase 3: fit a session into the time available
 function estimateMinutes(items){
-  let sec=0;for(const i of items){const ex=exById(i.exId);if(!ex)continue;const rec=recommend(ex,i.sets),n=i.sets||3;
+  let sec=0;for(const i of items){const ex=effEx(exById(i.exId),i);if(!ex)continue;const rec=recommend(ex,i.sets),n=i.sets||3;
     if(ex.type==='emom'){sec+=n*(ex.interval||60)+60;continue}
     const tempo=ex.tempo?(ex.tempo.d+ex.tempo.p+ex.tempo.u)*(+rec.r||10):0;
     const work=ex.type==='time'?(+rec.t||30)+5:ex.type==='distance'?45:ex.type==='reps'?35+tempo:45+tempo;sec+=n*work+(n-1)*ex.rest+60}
@@ -524,14 +538,15 @@ function swapRec(from,to,fromW,n){
     return {kind:'new',sets:n,w,r:to.repMin,rMin:to.repMin,rMax:to.repMax,label:`Start around ${fmtW(w)} ${S.unit}`,why:`Estimated from your ${fmtW(fromW)} ${S.unit} ${from.name}. Adjust after the first set.`}}
   return recommend(to,n);
 }
+function withStart(rec,ex,o){if(rec.kind!=='new'||o.w==null||!(ex.type==='weight'||ex.type==='distance'||ex.type==='emom'))return rec;return {...rec,w:o.w,label:`Start at ${fmtW(o.w)} ${S.unit}`,why:'The starting weight you set for this routine. LiftLog adjusts from how your first session goes.'}}
 function planItems(items){
   const used=new Set(items.map(i=>i.exId));
-  return items.filter(i=>exById(i.exId)).map(i=>{const ex=exById(i.exId);
-    if(!avail(ex)){const c=swapCandidates(ex,used)[0];
-      if(c){used.add(c.id);const last=exHistory(ex.id)[0],fw=last?workW(last):0,n=c.type==='emom'?Math.max(i.sets,5):i.sets;
-        return {exId:c.id,sets:n,rec:deloadAdj(swapRec(ex,c,fw,n),c),from:`Swapped from ${ex.name}: no ${ex.equip} in your ${profile().name} profile`}}
-      return {exId:ex.id,sets:i.sets,rec:deloadAdj(recommend(ex,i.sets),ex),from:`Needs ${ex.equip}, which isn't in your ${profile().name} profile`}}
-    return {exId:ex.id,sets:i.sets,rec:deloadAdj(recommend(ex,i.sets),ex)}});
+  return items.filter(i=>exById(i.exId)).map(i=>{const ov=ovOf(i),ex=effEx(exById(i.exId),ov);
+    if(!avail(ex)){const c0=swapCandidates(ex,used)[0];
+      if(c0){used.add(c0.id);const keep={rest:ov.rest,note:ov.note},c=effEx(c0,keep),last=exHistory(ex.id)[0],fw=last?workW(last):(+ov.w||0),n=c.type==='emom'?Math.max(i.sets,5):i.sets;
+        return {exId:c.id,sets:n,ov:keep,rec:deloadAdj(swapRec(ex,c,fw,n),c),from:`Swapped from ${ex.name}: no ${ex.equip} in your ${profile().name} profile`}}
+      return {exId:ex.id,sets:i.sets,ov,rec:deloadAdj(withStart(recommend(ex,i.sets),ex,ov),ex),from:`Needs ${ex.equip}, which isn't in your ${profile().name} profile`}}
+    return {exId:ex.id,sets:i.sets,ov,rec:deloadAdj(withStart(recommend(ex,i.sets),ex,ov),ex)}});
 }
 function routinePlan(r){const t=trimPlan(r.items,view.limit);return {...t,plan:planItems(t.items)}}
 const noteHtml=rec=>`<div class="note"><div><span class="tag ${rec.kind}">${esc(rec.label)}</span></div><p>${esc(rec.why)}</p></div>`;
@@ -739,9 +754,9 @@ function vHome(){
 function vPreview(){
   const r=S.routines.find(r=>r.id===view.preview);if(!r){view.preview=null;return vHome()}
   const {plan,notes,before}=routinePlan(r),U=S.unit;
-  const rows=plan.map(p=>{const ex=exById(p.exId),rec=p.rec;
+  const rows=plan.map(p=>{const ex=effEx(exById(p.exId),p.ov),rec=p.rec;
     const tgt=ex.type==='weight'?(rec.w!==''&&rec.w!=null?`${fmtW(rec.w)} ${U} · `:'')+`${rec.sets} × ${ex.repMin}–${ex.repMax}`:ex.type==='time'?`${rec.sets} × ${rec.t} s`:ex.type==='distance'?`${rec.sets} × ${+rec.w?fmtW(rec.w)+' '+U+' · ':''}${rec.d} m`:ex.type==='emom'?`${rec.sets} rounds × ${rec.r}`:`${rec.sets} × ${rec.r} reps`;
-    return `<div><div class="nm"><span>${esc(ex.name)}</span><span class="muted">${esc(tgt)}</span></div>${p.from?`<p class="muted">${esc(p.from)}</p>`:''}${noteHtml(rec)}</div>`}).join('');
+    return `<div><div class="nm"><span>${esc(ex.name)}</span><span class="muted">${esc(tgt)}</span></div>${p.from?`<p class="muted">${esc(p.from)}</p>`:''}${p.ov?.note?`<p class="muted">Your note: ${esc(p.ov.note)}</p>`:''}${noteHtml(rec)}</div>`}).join('');
   const R=readiness(),low=routineMuscles(plan).filter(g=>R[g]<50);
   let rec='';if(low.length){const alt=S.routines.filter(x=>x.id!==r.id).map(x=>{const ms=routineMuscles(x.items);return {x,avg:ms.length?ms.reduce((a,g)=>a+R[g],0)/ms.length:0}}).sort((a,b)=>b.avg-a.avg)[0];
     rec=`<div class="card warn"><strong>Recovery check</strong><p class="muted" style="color:inherit">${low.map(g=>`${g} about ${R[g]}%`).join(', ')} recovered (estimate).${alt&&alt.avg>=70?` ${esc(alt.x.name)} works muscles that are more recovered.`:''}</p>${alt&&alt.avg>=70?`<button class="btn sm" data-a="preview" data-id="${alt.x.id}">See ${esc(alt.x.name)} instead</button>`:''}</div>`}
@@ -772,7 +787,7 @@ function vActive(){
   return ({checkin:vCheckin,rate:vRate,rest:vRest,hold:vHold,emom:vEmom,tempo:vTempo}[A.phase]||vSet)();
 }
 function footer(){return `<div class="tools"><button class="btn ghost" data-a="swap">Swap exercise</button><button class="btn ghost" data-a="skipEx">Skip exercise</button><button class="btn ghost" data-a="undo">Undo last set</button><button class="btn ghost" data-a="overview">All exercises</button></div>`}
-function curParts(){const A=S.active,x=A.exercises[A.cur.ei],ex=x&&exById(x.exId),s=x&&x.sets[A.cur.si];return {A,x,ex,s}}
+function curParts(){const A=S.active,x=A.exercises[A.cur.ei],ex=x&&exOf(x),s=x&&x.sets[A.cur.si];return {A,x,ex,s}}
 function stepper(f,val,unitLbl){return `<div class="field"><button class="step" data-a="step" data-f="${f}" data-d="-1" aria-label="Decrease ${unitLbl}">−</button><div class="fv"><input type="number" inputmode="decimal" min="0" step="any" id="f-${f}" data-cf="${f}" value="${esc(val)}" aria-label="${unitLbl}"><span>${unitLbl}</span></div><button class="step" data-a="step" data-f="${f}" data-d="1" aria-label="Increase ${unitLbl}">+</button></div>`}
 function doneLabel(ex,s){const U=S.unit;if(ex.type==='time')return 'Start hold';if(ex.type==='emom')return 'Start EMOM';if(ex.type==='reps')return `Done · ${+s.r||0} reps`;
   if(ex.type==='distance')return `Done · ${+s.w?fmtW(+s.w)+' '+U+' · ':''}${+s.d||0} m`;return `Done · ${fmtW(+s.w||0)} × ${+s.r||0}`}
@@ -790,6 +805,7 @@ function vSet(){
   const eyebrow=ex.type==='emom'?`Exercise ${A.cur.ei+1} of ${A.exercises.length} · EMOM`:`Exercise ${A.cur.ei+1} of ${A.exercises.length} · Set ${A.cur.si+1} of ${x.sets.length}`;
   const sub=ex.type==='emom'?`${open} rounds · a new round every ${clock(ex.interval||60)}`:`Target ${targetText(ex,rec)} · rest ${clock(ex.rest)}${ex.tempo&&(ex.type==='weight'||ex.type==='reps')?` · tempo ${tempoStr(ex.tempo)}`:''}`;
   return `<div><div class="eyebrow">${eyebrow}</div><div class="fname">${esc(ex.name)}</div><div class="muted">${esc(sub)}</div>${x.from?`<div class="muted">${esc(x.from)}</div>`:''}</div>
+    ${x.ov?.note?`<div class="mynote"><strong>Your note:</strong> ${esc(x.ov.note)}</div>`:''}
     ${x.rec?`<div class="card">${noteHtml(x.rec)}</div>`:''}
     ${fields}
     ${ex.equip==='barbell'&&ex.type==='weight'?`<p class="muted center" id="plateLine">${esc(plateLine(+s.w||0))}</p>`:''}
@@ -799,7 +815,7 @@ function vSet(){
     ${footer()}`;
 }
 function nextUpText(){
-  const A=S.active,x=A.exercises[A.cur.ei];if(!x)return null;const ex=exById(x.exId),s=x.sets[A.cur.si];if(!s)return null;const U=S.unit;
+  const A=S.active,x=A.exercises[A.cur.ei];if(!x)return null;const ex=exOf(x),s=x.sets[A.cur.si];if(!s)return null;const U=S.unit;
   const what=ex.type==='weight'?`${fmtW(+s.w||0)} ${U} × ${+s.r||0}`:ex.type==='reps'?`${+s.r||0} reps`:ex.type==='time'?`hold ${+s.t||0} s`:ex.type==='distance'?`${+s.w?fmtW(+s.w)+' '+U+' · ':''}${+s.d||0} m`:`${x.sets.filter(q=>!q.done).length} rounds × ${+s.r||0}`;
   const speech=ex.type==='weight'?`${fmtW(+s.w||0)} ${unitWord()} for ${+s.r||0} reps`:ex.type==='reps'?`${+s.r||0} reps`:ex.type==='time'?`Hold for ${+s.t||0} seconds`:ex.type==='distance'?`${+s.d||0} meters`:`E MOM, ${+s.r||0} reps per round`;
   return {title:`${ex.name} · ${ex.type==='emom'?'EMOM':`Set ${A.cur.si+1} of ${x.sets.length}`}`,what,speech:`${ex.name}. ${ex.type==='emom'?'':`Set ${A.cur.si+1}. `}${speech}.`};
@@ -835,7 +851,7 @@ function vTempo(){
     <button class="btn block ghost" data-a="tempoCancel">Cancel guide</button>`;
 }
 function vRate(){
-  const A=S.active,x=A.exercises[A.cur.ei],ex=exById(x.exId),done=x.sets.filter(s=>s.done),U=S.unit;
+  const A=S.active,x=A.exercises[A.cur.ei],ex=exOf(x),done=x.sets.filter(s=>s.done),U=S.unit;
   const reps=done.map(s=>+s.r||0).join(', ');
   const desc=ex.type==='weight'?`${fmtW(workW({sets:done}))} ${U} · ${done.length} sets · ${reps} reps · target ${ex.repMin}–${ex.repMax}`:ex.type==='reps'?`${done.length} sets · ${reps} reps`
     :ex.type==='time'?`${done.length} holds · ${done.map(s=>(+s.t||0)+' s').join(', ')}`:ex.type==='distance'?`${done.length} sets · ${done.map(s=>(+s.d||0)+' m').join(', ')}${workW({sets:done})?` · ${fmtW(workW({sets:done}))} ${U}`:''}`
@@ -952,18 +968,49 @@ function syncTypeFields(){const t=$('#e-type')?.value;if(!t)return;
   $('#e-stepw').hidden=!(t==='time'||t==='distance');$('#e-intw').hidden=t!=='emom';$('#e-tempow').hidden=!(t==='weight'||t==='reps');
   $('#e-tlabel').textContent={time:'Starting hold (seconds)',distance:'Starting distance (m)',emom:'Reps per round',reps:'Starting reps'}[t]||'Target';
   $('#e-steplabel').textContent=t==='time'?'Hold increase (seconds)':'Distance increase (m)'}
+let openItem={ctx:null,i:-1},itemTarget=null;
+function ctxList(ctx){return ctx==='r'?draft.items:setup.plan[+ctx.slice(1)].items}
+function ctxRefresh(ctx){if(ctx==='r')routineSheet();else render()}
+function itemSummary(it){const e=effEx(exById(it.exId),it);if(!e)return '';const U=S.unit,unitSets=e.type==='emom'?'rounds':'sets';
+  const main=e.type==='weight'?`${it.sets} × ${e.repMin}–${e.repMax}`:e.type==='reps'?`${it.sets} × ${e.target} reps`:e.type==='time'?`${it.sets} × ${e.target} s`:e.type==='distance'?`${it.sets} × ${e.target} m`:`${it.sets} ${unitSets} × ${e.target}`;
+  return [main,`rest ${clock(e.rest)}`,it.w!=null?`start ${fmtW(it.w)} ${U}`:'',it.tempo?`tempo ${tempoStr(it.tempo)}`:'',it.note?'note':''].filter(Boolean).join(' · ')}
+function itemRows(list,ctx){return list.map((it,i)=>{const open=openItem.ctx===ctx&&openItem.i===i;return `<div class="ritem2"><div class="row">
+  <button class="rhead" data-a="itOpen" data-i="${i}" data-ctx="${ctx}" aria-expanded="${open}"><strong>${esc(exName(it.exId))}</strong><span class="muted" id="sum-${ctx}-${i}">${esc(itemSummary(it))}</span></button>
+  <button class="x" data-a="itMove" data-i="${i}" data-ctx="${ctx}" data-d="-1"${i===0?' disabled':''} aria-label="Move ${esc(exName(it.exId))} up">↑</button><button class="x" data-a="itMove" data-i="${i}" data-ctx="${ctx}" data-d="1"${i===list.length-1?' disabled':''} aria-label="Move ${esc(exName(it.exId))} down">↓</button><button class="x" data-a="itDel" data-i="${i}" data-ctx="${ctx}" aria-label="Remove ${esc(exName(it.exId))}">✕</button></div>
+  ${open?itemEditor(it,i,ctx):''}</div>`}).join('')}
+function itemEditor(it,i,ctx){
+  const base=exById(it.exId),e=effEx(base,it),U=S.unit,emom=e.type==='emom';
+  const f=(k,label,val,ph,type='number')=>`<label><span>${label}</span><input type="${type}"${type==='number'?' inputmode="decimal" min="0" step="any"':''} id="f-${ctx}-${i}-${k}" data-rf="${k}" data-i="${i}" data-ctx="${ctx}" value="${esc(val??'')}" placeholder="${esc(ph)}"></label>`;
+  let g='';
+  if(e.type==='weight')g=f('repMin','Rep range low',it.repMin,base.repMin)+f('repMax','Rep range high',it.repMax,base.repMax)+f('w',`Starting weight (${U})`,it.w,'Coach picks');
+  else if(e.type==='reps')g=f('target','Target reps',it.target,base.target);
+  else if(e.type==='time')g=f('target','Hold (seconds)',it.target,base.target);
+  else if(e.type==='distance')g=f('target','Distance (m)',it.target,base.target)+(hasLoad(e)?f('w',`Starting weight (${U})`,it.w,'Coach picks'):'');
+  else g=f('target','Reps per round',it.target,base.target)+(hasLoad(e)?f('w',`Weight (${U})`,it.w,'Coach picks'):'');
+  g+=f('rest',emom?'Rest after (seconds)':'Rest between sets (seconds)',it.rest,base.rest);
+  return `<div class="ied"><div class="row"><span class="grow">${emom?'Rounds':'Sets'}</span><button class="mini-step" data-a="itSets" data-i="${i}" data-ctx="${ctx}" data-d="-1" aria-label="Fewer">−</button><strong style="min-width:32px;text-align:center" id="sets-${ctx}-${i}">${it.sets}</strong><button class="mini-step" data-a="itSets" data-i="${i}" data-ctx="${ctx}" data-d="1" aria-label="More">+</button></div>
+    <div class="grid2">${g}</div>
+    ${e.type==='weight'||e.type==='reps'?f('tempo','Tempo (lower-pause-lift seconds)',it.tempo?tempoStr(it.tempo):'',base.tempo?tempoStr(base.tempo):'e.g. 3-0-1','text'):''}
+    ${f('note','Note shown during the workout',it.note,'e.g. Pause 1 second at the bottom','text')}
+    <div class="row wrap"><button class="btn sm" data-a="itSwap" data-i="${i}" data-ctx="${ctx}">Swap exercise</button><button class="btn sm ghost" data-a="itReset" data-i="${i}" data-ctx="${ctx}">Use exercise defaults</button></div>
+    <p class="muted">Empty fields use ${esc(base.name)}’s defaults (shown in grey). Changes apply to this routine only.</p></div>`;
+}
+function applyItemSwap(id){const {ctx,i}=itemTarget,list=ctxList(ctx),old=list[i],to=exById(id);if(!to)return;
+  if(exById(old.exId)?.type!==to.type)list[i]={exId:id,sets:old.sets,...(old.rest!=null?{rest:old.rest}:{}),...(old.note?{note:old.note}:{})};else old.exId=id;
+  if(ctx==='r')routineSheet();else{closeSheet();render()}toast(`Swapped to ${to.name}`)}
 let draft=null;
 function routineSheet(){
   sheetRender=routineSheet;
-  const items=draft.items.map((it,i)=>{const ex=exById(it.exId);return `<div class="ritem"><span class="nm">${esc(exName(it.exId))}</span><button class="mini-step" data-a="rSets" data-i="${i}" data-d="-1" aria-label="Fewer sets">−</button><span style="min-width:58px;text-align:center" class="muted">${it.sets} ${ex?.type==='emom'?'rounds':'sets'}</span><button class="mini-step" data-a="rSets" data-i="${i}" data-d="1" aria-label="More sets">+</button><button class="x" data-a="rMove" data-i="${i}" aria-label="Move up">↑</button><button class="x" data-a="rDel" data-i="${i}" aria-label="Remove">✕</button></div>`}).join('');
-  const old=$('#r-name')?.value;
+  const items=itemRows(draft.items,'r');
+  const sc=$('#dialog .sheet')?.scrollTop||0;
   openSheet(`<h3>${draft.id?'Edit routine':'New routine'}</h3>
-    <label><span>Routine name</span><input type="text" id="r-name" value="${esc(old??draft.name)}" placeholder="e.g. Push Day"></label>
+    <label><span>Routine name</span><input type="text" id="r-name" value="${esc(draft.name)}" placeholder="e.g. Push Day"></label>
     <div>${items||'<p class="muted">No exercises yet.</p>'}</div>
-    <p class="muted">Put your main lifts first: when you’re short on time, LiftLog trims from the end and keeps big compound lifts.</p>
+    <p class="muted">Tap an exercise to change its sets, reps, starting weight, rest, tempo or add a note. Put your main lifts first: when you’re short on time, LiftLog trims from the end.</p>
     <button class="btn block" data-a="rAdd">+ Add exercise</button>
     <div class="row"><button class="btn grow" data-a="closeSheet">Cancel</button><button class="btn primary grow" data-a="rSave">Save routine</button></div>
     ${draft.id?'<button class="btn danger block" data-a="rDelete">Delete routine</button>':''}`);
+  const sh=$('#dialog .sheet');if(sh)sh.scrollTop=sc;
 }
 let pdraft=null;
 function profileSheet(){
@@ -1024,7 +1071,7 @@ function renderPick(){
 function closePick(){const m=$('#modal');m.hidden=true;m.innerHTML=''}
 
 /* ================= workout engine ================= */
-function makeEntry(exId,rec,from){return {exId,rec,from:from||null,feel:null,form:false,sets:Array.from({length:Math.max(1,rec.sets||3)},()=>({w:rec.w??'',r:rec.r??'',t:rec.t??'',d:rec.d??'',done:false}))}}
+function makeEntry(exId,rec,from,ov){return {exId,rec,ov:ov||{},from:from||null,feel:null,form:false,sets:Array.from({length:Math.max(1,rec.sets||3)},()=>({w:rec.w??'',r:rec.r??'',t:rec.t??'',d:rec.d??'',done:false}))}}
 function startWorkout(name,routineId,entries){
   S.active={id:uid(),name,routineId:routineId||null,deload:deloadActive(),start:Date.now(),exercises:entries,cur:{ei:0,si:0},phase:'set',restEnd:0,restTotal:0,hold:null,emom:null,tempo:null,log:[],checkin:{}};
   view={preview:null,summary:null,limit:null};save();wake(true);window.scrollTo(0,0);render();
@@ -1244,10 +1291,10 @@ function vSetup(){
     <div><div class="eyebrow" style="margin-bottom:8px">How long is a typical session?</div><div class="seg five" style="grid-template-columns:repeat(4,1fr)">${[[30,'30 min'],[45,'45 min'],[60,'60 min'],[null,'No limit']].map(([v,l])=>`<button data-a="suMins" data-v="${v??''}" class="${su.mins===v?'on':''}" aria-pressed="${su.mins===v}">${l}</button>`).join('')}</div></div>
     <p class="muted">Longer routines get trimmed to fit, keeping your main lifts.</p>`+nav(su.days.length>0);
   if(st===6){const days=su.plan||[];
-    return head('Build your plan','Start from a suggested split, then add, swap or remove exercises. Each day becomes a routine, and LiftLog rotates through them on your training days.')
+    return head('Build your plan','Start from a suggested split, then tap any exercise to change its sets, reps, starting weight, rest, tempo or note. Each day becomes a routine, and LiftLog rotates through them on your training days.')
     +`<div class="chips">${[['fb','Full body'],['ul','Upper / Lower'],['ppl','Push / Pull / Legs'],['custom','Custom']].map(([k,l])=>`<button class="chip ${su.split===k?'on':''}" data-a="suSplit" data-v="${k}" aria-pressed="${su.split===k}">${l}</button>`).join('')}</div>`
     +days.map((d,di)=>`<div class="card"><div class="row"><input type="text" class="dayname grow" id="day-${di}" data-day="${di}" value="${esc(d.name)}" aria-label="Workout day name"><button class="x" data-a="suDelDay" data-d="${di}" aria-label="Remove ${esc(d.name)}">✕</button></div>
-      <div>${d.items.map((it,ii)=>`<div class="ritem"><span class="nm">${esc(exName(it.exId))}</span><button class="mini-step" data-a="suSets" data-d="${di}" data-i="${ii}" data-v="-1" aria-label="Fewer sets">−</button><span class="muted" style="min-width:42px;text-align:center">${it.sets} sets</span><button class="mini-step" data-a="suSets" data-d="${di}" data-i="${ii}" data-v="1" aria-label="More sets">+</button><button class="btn sm" data-a="suSwapEx" data-d="${di}" data-i="${ii}">Swap</button><button class="x" data-a="suDelEx" data-d="${di}" data-i="${ii}" aria-label="Remove ${esc(exName(it.exId))}">✕</button></div>`).join('')||'<p class="muted">No exercises yet.</p>'}</div>
+      <div>${itemRows(d.items,'d'+di)||'<p class="muted">No exercises yet.</p>'}</div>
       <button class="btn sm block" data-a="suAddEx" data-d="${di}">+ Add exercise</button></div>`).join('')
     +`<div class="row"><button class="btn grow" data-a="suAddDay">+ Add a day</button>${su.split!=='custom'?'<button class="btn grow ghost" data-a="suResetPlan">Reset to suggested</button>':''}</div>`
     +`<p class="muted">Put the big lifts first in each day. When you’re short on time LiftLog trims from the end.</p>`+nav(days.some(d=>d.items.length));}
@@ -1280,16 +1327,7 @@ const suAct={
   suResetPlan:()=>{setup.plan=buildPlan(setup,SPLITS[setup.split]);render();toast('Back to the suggested days')},
   suAddDay:()=>{setup.plan.push({name:`Day ${setup.plan.length+1}`,items:[]});render()},
   suDelDay:b=>{if(setup.plan.length<=1){toast('Keep at least one day');return}setup.plan.splice(+b.dataset.d,1);render()},
-  suSets:b=>{const it=setup.plan[+b.dataset.d].items[+b.dataset.i];it.sets=Math.max(1,Math.min(10,it.sets+ +b.dataset.v));render()},
-  suDelEx:b=>{setup.plan[+b.dataset.d].items.splice(+b.dataset.i,1);render()},
   suAddEx:b=>{setupTarget={di:+b.dataset.d,ii:null};openPick('setup')},
-  suSwapEx:b=>{const di=+b.dataset.d,ii=+b.dataset.i,ex=exById(setup.plan[di].items[ii].exId),used=new Set(setup.plan[di].items.map(i=>i.exId));setupTarget={di,ii};
-    const c=swapCandidates(ex,used);
-    openSheet(`<div class="row"><h3 class="grow">Swap ${esc(ex.name)}</h3><button class="btn sm" data-a="closeSheet">Close</button></div><p class="muted">Equivalent exercises with your equipment. Same movement first.</p>
-      ${c.length?`<div class="list">${c.map(e=>`<button class="item" data-a="suSwapTo" data-id="${e.id}"><span><strong>${esc(e.name)}</strong><br><span class="muted">${esc(e.equip)} · ${esc(TYPES[e.type])}</span></span><span class="muted">${e.pattern===ex.pattern?'Same movement':esc(e.muscle)}</span></button>`).join('')}</div>`:'<p>No equivalent with your equipment.</p>'}
-      <button class="btn block" data-a="suSwapAny">Choose any exercise</button>`)},
-  suSwapTo:b=>{const {di,ii}=setupTarget;setup.plan[di].items[ii].exId=b.dataset.id;closeSheet();render()},
-  suSwapAny:()=>{closeSheet();openPick('setup')},
   suBlock:b=>{setup.block=+b.dataset.v;render()},
   suBack:()=>{if(setup.step<=1&&S.setupDone){setup=null;render();return}setup.step=Math.max(0,setup.step-1);window.scrollTo(0,0);render()},
   suPick:b=>{const k=b.dataset.k,v=b.dataset.v;setup[k]=v;if(k==='place')setup.equip=[...defaultProfiles().find(p=>p.id===v).equip];render()},
@@ -1309,7 +1347,7 @@ const act={
   limit:b=>{view.limit=b.dataset.v?+b.dataset.v:null;render()},
   closeSummary:()=>{view.summary=null;render()},
   startRoutine:b=>{const r=S.routines.find(r=>r.id===b.dataset.id);if(!r)return;audioUnlock();const {plan}=routinePlan(r);
-    startWorkout(r.name,r.id,plan.map(p=>makeEntry(p.exId,p.rec,p.from&&p.from.startsWith('Swapped')?p.from:null)))},
+    startWorkout(r.name,r.id,plan.map(p=>makeEntry(p.exId,p.rec,p.from&&p.from.startsWith('Swapped')?p.from:null,p.ov)))},
   startEmpty:()=>{audioUnlock();startWorkout(defaultName(),null,[]);openPick('workout')},
   step:b=>{const {ex,s}=curParts(),f=b.dataset.f,d=+b.dataset.d,size=f==='w'?(ex.inc||(S.unit==='kg'?2.5:5)):f==='t'?(ex.step||5):f==='d'?(ex.step||10):1;s[f]=Math.max(0,Math.round(((+s[f]||0)+d*size)*100)/100);save();render()},
   complete,
@@ -1354,13 +1392,10 @@ const act={
   closePick,closeSheet,
   pick:b=>picked(b.dataset.id),
   pickNew:()=>{const name=$('#pickSearch').value.trim();if(!name)return;const e=customEx(name,'Other',S.unit);S.exercises.push(e);picked(e.id)},
-  newRoutine:()=>{draft={id:null,name:'',items:[]};routineSheet()},
-  editRoutine:b=>{const r=S.routines.find(r=>r.id===b.dataset.id);if(!r)return;draft={id:r.id,name:r.name,items:r.items.map(i=>({...i}))};routineSheet()},
+  newRoutine:()=>{draft={id:null,name:'',items:[]};openItem={ctx:null,i:-1};routineSheet()},
+  editRoutine:b=>{const r=S.routines.find(r=>r.id===b.dataset.id);if(!r)return;draft={id:r.id,name:r.name,items:r.items.map(i=>({...i}))};openItem={ctx:null,i:-1};routineSheet()},
   rAdd:()=>openPick('routine'),
-  rSets:b=>{const it=draft.items[+b.dataset.i],max=exById(it.exId)?.type==='emom'?30:10;it.sets=Math.max(1,Math.min(max,it.sets+ +b.dataset.d));routineSheet()},
-  rMove:b=>{const i=+b.dataset.i;if(i<1)return;[draft.items[i-1],draft.items[i]]=[draft.items[i],draft.items[i-1]];routineSheet()},
-  rDel:b=>{draft.items.splice(+b.dataset.i,1);routineSheet()},
-  rSave:()=>{const name=$('#r-name').value.trim();if(!name){toast('Give the routine a name');return}if(!draft.items.length){toast('Add at least one exercise');return}
+  rSave:()=>{const name=($('#r-name')?.value??draft.name).trim();if(!name){toast('Give the routine a name');return}if(!draft.items.length){toast('Add at least one exercise');return}
     if(draft.id){const r=S.routines.find(r=>r.id===draft.id);Object.assign(r,{name,items:draft.items,sample:false})}else{const r={id:uid(),name,items:draft.items};S.routines.push(r);view.preview=r.id}
     save();closeSheet();tab='workout';render();toast('Routine saved')},
   rDelete:async()=>{const id=draft.id,r=S.routines.find(r=>r.id===id);if(await ask({title:`Delete “${r.name}”?`,msg:'Your workout history stays as it is.',ok:'Delete routine',danger:true})){S.routines=S.routines.filter(x=>x.id!==id);view.preview=null;save();render();toast('Routine deleted')}},
@@ -1379,6 +1414,19 @@ const act={
   delExercise:async b=>{if(await ask({title:'Delete this exercise?',ok:'Delete',danger:true})){S.exercises=S.exercises.filter(e=>e.id!==b.dataset.id);save();render()}},
   voice:()=>{S.voice=!S.voice;save();render();if(S.voice)speak('Voice coach on.')},
   mic:()=>{audioUnlock();listening?(stopListening(),toast('Voice commands off')):startListening()},
+  itOpen:b=>{const ctx=b.dataset.ctx,i=+b.dataset.i;openItem=openItem.ctx===ctx&&openItem.i===i?{ctx:null,i:-1}:{ctx,i};ctxRefresh(ctx)},
+  itMove:b=>{const ctx=b.dataset.ctx,i=+b.dataset.i,j=i+ +b.dataset.d,l=ctxList(ctx);if(j<0||j>=l.length)return;[l[i],l[j]]=[l[j],l[i]];if(openItem.ctx===ctx&&openItem.i===i)openItem.i=j;ctxRefresh(ctx)},
+  itDel:b=>{const ctx=b.dataset.ctx,i=+b.dataset.i;ctxList(ctx).splice(i,1);openItem={ctx:null,i:-1};ctxRefresh(ctx)},
+  itSets:b=>{const ctx=b.dataset.ctx,it=ctxList(ctx)[+b.dataset.i],max=exById(it.exId)?.type==='emom'?30:10;it.sets=Math.max(1,Math.min(max,it.sets+ +b.dataset.d));
+    const n=$(`#sets-${ctx}-${b.dataset.i}`);if(n)n.textContent=it.sets;const sm=$(`#sum-${ctx}-${b.dataset.i}`);if(sm)sm.textContent=itemSummary(it)},
+  itReset:b=>{const ctx=b.dataset.ctx,l=ctxList(ctx),i=+b.dataset.i;l[i]={exId:l[i].exId,sets:l[i].sets};ctxRefresh(ctx);toast('Using the exercise defaults')},
+  itSwap:b=>{const ctx=b.dataset.ctx,i=+b.dataset.i,list=ctxList(ctx),ex=exById(list[i].exId);itemTarget={ctx,i};const c=swapCandidates(ex,new Set(list.map(x=>x.exId)));
+    openSheet(`<div class="row"><h3 class="grow">Swap ${esc(ex.name)}</h3></div><p class="muted">Equivalent exercises with your equipment. Same movement first.</p>
+      ${c.length?`<div class="list">${c.map(e=>`<button class="item" data-a="itSwapTo" data-id="${e.id}"><span><strong>${esc(e.name)}</strong><br><span class="muted">${esc(e.equip)} · ${esc(TYPES[e.type])}</span></span><span class="muted">${e.pattern===ex.pattern?'Same movement':esc(e.muscle)}</span></button>`).join('')}</div>`:'<p>No equivalent with your equipment.</p>'}
+      <button class="btn block" data-a="itSwapAny">Choose any exercise</button><button class="btn block ghost" data-a="itSwapCancel">Cancel</button>`)},
+  itSwapTo:b=>applyItemSwap(b.dataset.id),
+  itSwapAny:()=>openPick('itemSwap'),
+  itSwapCancel:()=>{if(itemTarget.ctx==='r')routineSheet();else closeSheet()},
   blockW:b=>{const v=+b.dataset.v;S.blockWeeks=v;S.blockStart=v?(S.blockStart||Date.now()):0;save();render()},
   dayT:b=>{const i=+b.dataset.v;S.days=S.days.includes(i)?S.days.filter(d=>d!==i):[...S.days,i].sort((a,b)=>a-b);save();render()},
   newProfile:()=>{pdraft={id:null,name:'',equip:['bodyweight','other']};profileSheet()},
@@ -1418,6 +1466,7 @@ function picked(exId){
   closePick();
   if(pickMode==='routine'){draft.items.push({exId,sets:exById(exId)?.type==='emom'?10:3});routineSheet();return}
   if(pickMode==='swap'){doSwap(exId);return}
+  if(pickMode==='itemSwap'){applyItemSwap(exId);return}
   if(pickMode==='setup'){const {di,ii}=setupTarget;const ex=exById(exId);if(ii==null)setup.plan[di].items.push({exId,sets:ex?.type==='emom'?10:3});else setup.plan[di].items[ii].exId=exId;render();return}
   const A=S.active,ex=exById(exId),prevN=exHistory(exId)[0]?.sets.length||(ex.type==='emom'?10:3);A.exercises.push(makeEntry(exId,deloadAdj(recommend(ex,prevN),ex)));
   const ei=A.exercises.length-1,cur=A.exercises[A.cur.ei];
@@ -1433,6 +1482,12 @@ document.addEventListener('input',e=>{
   const t=e.target;
   if(t.dataset.cf&&S.active){const {ex,s}=curParts();if(s){s[t.dataset.cf]=t.value;save();const d=$('#doneBtn');if(d)d.textContent=doneLabel(ex,s);const pl=$('#plateLine');if(pl)pl.textContent=plateLine(+s.w||0)}}
   else if(t.dataset.day!=null&&setup?.plan){setup.plan[+t.dataset.day].name=t.value}
+  else if(t.id==='r-name'&&draft){draft.name=t.value}
+  else if(t.dataset.rf){const ctx=t.dataset.ctx,i=+t.dataset.i,it=ctxList(ctx)[i],k=t.dataset.rf,v=t.value.trim();
+    if(k==='note'){if(v)it.note=v;else delete it.note}
+    else if(k==='tempo'){const tp=parseTempo(v);if(!v)delete it.tempo;else if(tp)it.tempo=tp}
+    else{const n=parseFloat(v);if(v===''||!isFinite(n)||n<0)delete it[k];else it[k]=k==='w'?Math.round(n*100)/100:Math.max(k==='rest'?0:1,Math.round(n))}
+    const sm=$(`#sum-${ctx}-${i}`);if(sm)sm.textContent=itemSummary(it)}
   else if(t.id==='exSearch')renderExList();
   else if(t.id==='pickSearch')renderPick();
   else if(t.id==='pl-target')renderPlates();

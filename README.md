@@ -28,6 +28,7 @@ LiftLog works like a personal trainer that lives on your phone. It remembers eve
 - **Hands-free:** optional voice coach reads your next set; voice commands ("done", "what's next", "skip rest", "135 pounds"...).
 
 **Tracking**
+- **Routines you fully control:** tap any exercise in a routine to set its sets, rep range or target, starting weight, rest time, tempo and a note shown during the workout. Swap, reorder or remove exercises. Settings apply to that routine only.
 - **Equipment profiles:** gym, home, travel. Routines adapt automatically.
 - **Records** for weight, estimated 1-rep max, reps, holds and distance.
 - **Progress charts** per exercise and weekly volume.
