@@ -317,7 +317,7 @@ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 function exFromRow(r,unit){const [name,muscle,equip,pattern,type,repMin,repMax,rest,inc,target]=r;const kg=unit==='kg';
   return {id:uid(),name,muscle,equip,pattern,type,repMin:repMin||8,repMax:repMax||12,rest,inc:inc?(kg?inc/2:inc):(type==='weight'?(kg?2.5:5):0),
     target:target||(type==='time'?30:type==='distance'?40:8),step:type==='distance'?10:5,interval:60,tempo:null}}
-function customEx(name,muscle,unit,type){return {id:uid(),name,muscle:muscle||'Other',equip:'other',pattern:'',type:type||'weight',repMin:8,repMax:12,rest:90,inc:unit==='kg'?2.5:5,target:type==='time'?30:8,step:5,interval:60,tempo:null}}
+function customEx(name,muscle,unit,type){type=type||'weight';return {id:uid(),name,muscle:muscle||'Other',equip:'other',pattern:'',type,repMin:8,repMax:12,rest:type==='time'?60:90,inc:unit==='kg'?2.5:5,target:{time:30,distance:40,emom:10}[type]||10,step:type==='distance'?10:5,interval:60,tempo:null}}
 const defaultProfiles=()=>[{id:'gym',name:'Commercial gym',equip:[...EQUIP]},{id:'home',name:'Home',equip:['dumbbell','kettlebell','band','bodyweight','other']},{id:'travel',name:'Travel',equip:['band','bodyweight','other']}];
 
 function fresh(withSamples){
@@ -1064,11 +1064,30 @@ function openPick(mode){
 function renderPick(){
   const q=($('#pickSearch')?.value||'').trim();
   const exists=S.exercises.some(e=>e.name.toLowerCase()===q.toLowerCase());
-  const items=(q&&!exists?`<button class="item" data-a="pickNew"><strong>+ Create “${esc(q)}”</strong></button>`:'')+
+  const items=(q&&!exists?`<button class="item" data-a="pickNew"><span><strong>+ Create “${esc(q)}”</strong><br><span class="muted">Choose weight, reps, timed, distance or EMOM</span></span></button>`:'')+
     filterEx(q).map(e=>`<button class="item ${avail(e)?'':'off'}" data-a="pick" data-id="${e.id}"><span><strong>${esc(e.name)}</strong><br><span class="muted">${esc(TYPES[e.type])}${avail(e)?'':setup?` · needs ${esc(e.equip)}`:` · no ${esc(e.equip)} in ${esc(profile().name)}`}</span></span><span class="muted">${esc(e.muscle)}</span></button>`).join('');
   $('#pickList').innerHTML=items?`<div class="list">${items}</div>`:'';
 }
-function closePick(){const m=$('#modal');m.hidden=true;m.innerHTML=''}
+function closePick(){const m=$('#modal');m.hidden=true;m.innerHTML='';qc=null}
+// Create a new exercise from the picker, choosing how it's logged
+let qc=null;
+const QC_TYPES=[['weight','Weight + reps','Sets of reps with a load, e.g. 3 × 10 at 50 lb'],['reps','Reps only','Bodyweight or band moves, e.g. 3 × 12'],['time','Timed hold','A countdown per set, e.g. 3 × 45 seconds'],['distance','Distance','Carries, sled pushes, e.g. 3 × 40 m'],['emom','EMOM / intervals','Reps at the start of every minute']];
+function renderQC(){
+  const m=$('#modal'),t=qc.type,U=S.unit;
+  const num=(id,label,val)=>`<label><span>${label}</span><input type="number" inputmode="decimal" min="1" id="${id}" value="${esc(val)}"></label>`;
+  const target=t==='weight'?`<div class="grid2">${num('qc-min','Rep range low',qc.min)}${num('qc-max','Rep range high',qc.max)}</div>`
+    :t==='time'?num('qc-target','Hold (seconds)',qc.target):t==='distance'?num('qc-target','Distance (m)',qc.target):num('qc-target',t==='emom'?'Reps per round':'Target reps',qc.target);
+  m.innerHTML=`<div class="sheet gut" role="dialog" aria-modal="true" aria-label="New exercise">
+    <div class="row"><h3 class="grow">New exercise</h3><button class="btn sm" data-a="qcBack">Back</button></div>
+    <label><span>Name</span><input type="text" id="qc-name" value="${esc(qc.name)}" placeholder="e.g. Sled Pull"></label>
+    <div class="stack"><div class="eyebrow">How do you log it?</div>${QC_TYPES.map(([k,l,d])=>`<button class="opt ${t===k?'on':''}" data-a="qcType" data-v="${k}" aria-pressed="${t===k}"><strong>${l}</strong><span>${d}</span></button>`).join('')}</div>
+    ${target}
+    <div class="grid2"><label><span>Muscle group</span><select id="qc-muscle">${[...GROUPS,'Full body','Other'].map(g=>`<option${qc.muscle===g?' selected':''}>${g}</option>`).join('')}</select></label>
+    <label><span>Equipment</span><select id="qc-equip">${EQUIP.map(q=>`<option${qc.equip===q?' selected':''}>${q}</option>`).join('')}</select></label></div>
+    <p class="muted">You can change rest time, weight jumps and tempo later in the Exercises tab.</p>
+    <button class="btn primary big block" data-a="qcCreate">Create and add</button></div>`;
+}
+function qcDefaults(type){return {target:{time:30,distance:40,emom:10}[type]||10}}
 
 /* ================= workout engine ================= */
 function makeEntry(exId,rec,from,ov){return {exId,rec,ov:ov||{},from:from||null,feel:null,form:false,sets:Array.from({length:Math.max(1,rec.sets||3)},()=>({w:rec.w??'',r:rec.r??'',t:rec.t??'',d:rec.d??'',done:false}))}}
@@ -1391,7 +1410,14 @@ const act={
   addEx:()=>openPick('workout'),
   closePick,closeSheet,
   pick:b=>picked(b.dataset.id),
-  pickNew:()=>{const name=$('#pickSearch').value.trim();if(!name)return;const e=customEx(name,'Other',S.unit);S.exercises.push(e);picked(e.id)},
+  pickNew:()=>{const name=$('#pickSearch').value.trim();if(!name)return;qc={name,type:'weight',min:8,max:12,target:10,muscle:'Other',equip:'other'};renderQC();$('#qc-name').focus()},
+  qcType:b=>{qc.type=b.dataset.v;qc.target=qcDefaults(qc.type).target;qc.equip=qc.type==='reps'||qc.type==='time'?(qc.equip==='other'?'bodyweight':qc.equip):qc.equip;renderQC()},
+  qcBack:()=>{const n=qc?.name||'';qc=null;openPick(pickMode);$('#pickSearch').value=n;renderPick()},
+  qcCreate:()=>{const name=qc.name.trim();if(!name){toast('Give the exercise a name');return}
+    if(S.exercises.some(e=>e.name.toLowerCase()===name.toLowerCase())){toast('That name is already in the list. Pick it from the search instead.');return}
+    const e=customEx(name,qc.muscle,S.unit,qc.type);e.equip=qc.equip;
+    if(qc.type==='weight'){let a=Math.max(1,Math.round(+qc.min||8)),b=Math.max(1,Math.round(+qc.max||12));if(b<a)[a,b]=[b,a];e.repMin=a;e.repMax=b}else e.target=Math.max(1,Math.round(+qc.target||qcDefaults(qc.type).target));
+    S.exercises.push(e);save();qc=null;picked(e.id);toast(`${name} created`)},
   newRoutine:()=>{draft={id:null,name:'',items:[]};openItem={ctx:null,i:-1};routineSheet()},
   editRoutine:b=>{const r=S.routines.find(r=>r.id===b.dataset.id);if(!r)return;draft={id:r.id,name:r.name,items:r.items.map(i=>({...i}))};openItem={ctx:null,i:-1};routineSheet()},
   rAdd:()=>openPick('routine'),
@@ -1488,6 +1514,7 @@ document.addEventListener('input',e=>{
     else if(k==='tempo'){const tp=parseTempo(v);if(!v)delete it.tempo;else if(tp)it.tempo=tp}
     else{const n=parseFloat(v);if(v===''||!isFinite(n)||n<0)delete it[k];else it[k]=k==='w'?Math.round(n*100)/100:Math.max(k==='rest'?0:1,Math.round(n))}
     const sm=$(`#sum-${ctx}-${i}`);if(sm)sm.textContent=itemSummary(it)}
+  else if(qc&&t.id&&t.id.startsWith('qc-')){const k={'qc-name':'name','qc-min':'min','qc-max':'max','qc-target':'target'}[t.id];if(k)qc[k]=t.value}
   else if(t.id==='exSearch')renderExList();
   else if(t.id==='pickSearch')renderPick();
   else if(t.id==='pl-target')renderPlates();
@@ -1498,6 +1525,7 @@ document.addEventListener('change',e=>{
   if(t.id==='unit'){S.unit=t.value;save();render()}
   else if(t.id==='profileSel'){S.profileId=t.value;save();render();toast(`Training at ${profile().name}`)}
   else if(t.id==='e-type')syncTypeFields();
+  else if(qc&&(t.id==='qc-muscle'||t.id==='qc-equip'))qc[t.id.slice(3)]=t.value;
   else if(t.id==='importFile'&&t.files[0]){const f=t.files[0];t.value='';f.text().then(txt=>{const r=$('#rs');if(r)r.value=txt;toast('File loaded. Tap Restore.')}).catch(()=>toast("Couldn't read that file"))}
 });
 document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(!$('#modal').hidden)closePick();else if(!$('#dialog').hidden)closeSheet()});
